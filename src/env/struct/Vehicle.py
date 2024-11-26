@@ -29,7 +29,7 @@ class Vehicle:
         self.rebalance_target = -1
         self.prev_node = node
         self.node = node
-        self.offset = 0
+        self.offset = 0 # Time required to arrive at the next node (self.node)
         self.total_rebalance_distance = 0.0
         self.total_distance_traveled = 0.0
         self.state = Vehicle.IDLE

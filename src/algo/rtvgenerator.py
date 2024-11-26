@@ -1,5 +1,7 @@
 import time
 import threading
+import networkx as nx
+import random
 from concurrent.futures import ThreadPoolExecutor
 from src.algo.insersion import travel_timed
 from src.env.struct.Trip import Trip
@@ -35,11 +37,55 @@ def previoustrip(vehicle, network, current_time):
     
     return previous_trip
 
-def make_rtvgraph(wrap_data):
+def avg_delay(vehicle, node_list, network, current_time):
+    """
+    Calculate the average delay for a trip.
+    
+    Args:
+        vehicle (Vehicle): The vehicle object.
+        node_list: List of NodeStop objects.
+        network: The network object.
+        current_time(int): Current time.
+
+    Returns:
+        Average delay as a float in negatative form.
+    """
+    if not node_list:
+        return 0.0
+
+    arrival_time = current_time
+    delay = 0.0
+
+    # First node
+    arrival_time += network.get_vehicle_time(vehicle, node_list[0].node)
+    if node_list[0].is_pickup:
+        delay += max(0.0, arrival_time - node_list[0].r.entry_time)
+    else:
+        delay += max(0.0, arrival_time - (node_list[0].r.entry_time + node_list[0].r.ideal_traveltime))
+
+    # Process the remaining nodes
+    for i in range(len(node_list) - 1):
+        arrival_time += network.get_time(node_list[i].node, node_list[i + 1].node)
+        if node_list[i + 1].is_pickup:
+            delay += max(0.0, arrival_time - node_list[i + 1].r.entry_time)
+        else:
+            delay += max(0.0, arrival_time - (node_list[i + 1].r.entry_time + node_list[i + 1].r.ideal_traveltime))
+
+    # Average delay
+    return delay / len(node_list)
+
+def prepare_input(clique):
+    """Prepare clique to be input to the prediction model.
+    """
+    #TODO
+    return clique
+
+def make_rtvgraph(wrap_data, model=None):
     """Generate RTV grah incrementally.
 
     Args:
         wrap_data (dict): dictionary containing rv graph and vehicles
+        model (PyTorch.nn): feasiblity score predictor. Default None means checking feasibility by routing.
 
     Return:
         Dictionary of feasible trips for each vehicle including both the new and pending requests. Include the previously assigned trips.
@@ -60,6 +106,7 @@ def make_rtvgraph(wrap_data):
         start_time = time.time()
         timeout = False
 
+        # Select current vehicle and make trip list up to size k.
         vehicle = vehicles[i]
         rounds = []
         previous_assigned_passengers = set(vehicle.pending_requests)
@@ -86,13 +133,15 @@ def make_rtvgraph(wrap_data):
         first_round = []
         for request in initial_pairing:
             path_cost, path_order = travel_timed(
-                vehicle, [request], network, current_time, start_time, glo.RTV_TIMELIMIT, 'STANDARD'
-            )
-            if path_cost >= 0:
+                vehicle, [request], network, current_time)
+            if path_cost < 0:
+                print(f"Infeasible edge between v{vehicle.id} and r{request.id} at time {current_time}")
+            else:
                 trip = Trip(cost=path_cost, order_record=path_order, requests=[request])
                 first_round.append(trip)
         rounds.append(first_round) # Add trip of length one
 
+        # In round k+1, only take pairs from the previous round
         k = 1  # Current trip size
         while rounds[k] and not timeout:
             k += 1
@@ -104,7 +153,7 @@ def make_rtvgraph(wrap_data):
             for idx1, trip1 in enumerate(rounds[k - 1]):
                 for idx2 in range(idx1 + 1, len(rounds[k - 1])):
                     # Timeout check
-                    if glo.RTV_TIMELIMIT and (time.time() - start_time) * 1000 > glo.RTV_TIMELIMIT:
+                    if glo.RTV_TIMELIMIT and (time.time() - start_time) > glo.RTV_TIMELIMIT:
                         timeout = True
                         break
 
@@ -129,6 +178,18 @@ def make_rtvgraph(wrap_data):
                         continue
 
                     # Check route feasibility
+                    if model is not None:
+                        request_ids = [f'r{r.id}' for r in combined_requests]
+                        clique1 = rv_graph.subgraph([f'v{vehicle.id}']+request_ids)
+                        clique2 = rr_graph.subgraph(request_ids)
+                        clique = nx.compose(clique1,clique2)
+                        nn_input = prepare_input(clique)
+                        feasibility = model.predict(nn_input)
+                        # TODO: more spohisticated sampling
+                        if random.random()>feasibility:
+                            continue
+
+                    # Calculate route and delay
                     path_cost, path_order = travel_timed(
                         vehicle, list(combined_requests), network, current_time, start_time, glo.RTV_TIMELIMIT, 'STANDARD'
                     )
@@ -136,13 +197,14 @@ def make_rtvgraph(wrap_data):
                         continue
                     else:
                         # Add the new trip
-                        trip = Trip(cost=path_cost, order_record=path_order, requests=list(combined_requests))
+                        delay = avg_delay(vehicle,path_order,network,current_time)
+                        trip = Trip(cost=delay, order_record=path_order, requests=list(combined_requests))
                         new_round.append(trip)
                         existing_trips.add(frozenset(combined_requests))
             rounds.append(new_round)
 
         # Compile potential trip list
-        potential_trips = [trip for round_trips in rounds for trip in round_trips if trip.cost >= 0]
+        potential_trips = [trip for round_trips in rounds for trip in round_trips]
 
         # Include previous assignment if any
         if vehicle.order_record:

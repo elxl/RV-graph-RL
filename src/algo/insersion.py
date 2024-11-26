@@ -128,7 +128,7 @@ def recursive_search(initial_location: int, residual_capacity: int, initially_av
             arrival_time += glo.DWELL_PICKUP # Add pickup dwell time
 
         if m.node.is_pickup and m.node.r.entry_time > arrival_time:
-            arrival_time = m.node.r.entry_time
+            arrival_time = m.node.r.entry_ti
 
         # Check optimality
         if best_time != -1 and arrival_time >= best_time:
@@ -218,7 +218,7 @@ def new_travel(vehicle, requests: List['Request'], network, current_time: int) -
         initially_available.add(meta_nodes[-len(vehicle.passengers)]) # Follow the previous assigned order
     else:
         for i in range(len(vehicle.passengers)):
-            initially_available.add(meta_nodes[-1 - i]) # Reoptimize dropoff order for on board
+            initially_available.add(meta_nodes[-1 - i]) # Reoptimize dropoff order also for on board
 
     # Recompute the initially available set if the number of candidate nodes exceeds LP_LIMITVALUE
     if glo.CTSP == "FIX_PREFIX" and len(meta_nodes) > glo.LP_LIMITVALUE:
@@ -339,7 +339,7 @@ def recursive_search_timed(initial_location: int, residual_capacity: int, initia
 
     for m in initially_available:
         # Check for a timeout
-        if time_limit and (time() - start_time) * 1000 > time_limit:  # time in milliseconds
+        if time_limit and (time() - start_time) > time_limit:
             break
 
         if previous is not None and not m.node.is_pickup and previous.node.node == m.node.node:

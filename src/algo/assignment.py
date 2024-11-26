@@ -4,13 +4,9 @@ from src.algo.rtvgenerator import build_rtv_graph
 import src.utils.global_var as glo
 
 # Constants (define these according to your application)
-MISS_COST = 1000  # Cost for unassigned requests
-RMT_REWARD = 1    # Reward multiplier for RMT objective
-# ASSIGNMENT_OBJECTIVE = 'AO_SERVICERATE'  # Or 'AO_RMT'
-# ALGORITHM = 'ILP_FULL'  # Algorithm type
-ILP_FULL = 'ILP_FULL'   # Constant for ILP_FULL algorithm
+MISS_COST = 10000000  # Cost for unassigned requests
+RMT_REWARD = 100    # Reward multiplier for RMT objective
 OPTIMIZER_VERBOSE = True  # Set to True for verbose output
-# RESULTS_DIRECTORY = '.'  # Directory for results files (adjust as needed)
 
 def ilp_assignment(trip_list, requests, time_param):
     """
@@ -27,7 +23,7 @@ def ilp_assignment(trip_list, requests, time_param):
 
     # Simultaneously count variables, get cost vector, and build mapping for constraint 2
     k = len(requests)
-    index = 0
+    index = 0 # Trip index
     costs = []
     rids_to_trips = {}  # Mapping from request ID to set of trip indices that includes the request
 
@@ -52,14 +48,14 @@ def ilp_assignment(trip_list, requests, time_param):
     num_requests = k
 
     # Create a new Gurobi model
-    model = Model("Assignment")
+    model = Model("Assignment ILP")
 
     if not OPTIMIZER_VERBOSE:
         model.Params.OutputFlag = 0  # Turn off Gurobi output
 
     # Variables
     e = model.addVars(num_trips, vtype=GRB.BINARY, name="e")  # Binary variables for trips
-    x = model.addVars(num_requests, vtype=GRB.BINARY, name="x")  # Binary variables for unassigned requests
+    x = model.addVars(num_requests, vtype=GRB.BINARY, name="x")  # Binary variables for requests. 1 stands for not assigned.
 
     # Objective function
     if glo.ASSIGNMENT_OBJECTIVE == 'AO_SERVICERATE':
@@ -84,7 +80,7 @@ def ilp_assignment(trip_list, requests, time_param):
             model.addConstr(quicksum(e_vars) == 1, name=f"c1_{vehicle.id}")
         count += num_vehicle_trips
 
-    # Constraint Two: Each request is assigned to exactly one trip or marked as unassigned
+    # Constraint Two: Each request is assigned to exactly one trip or marked as unassigned. Previously assigned request needs to be assigned.
     for k, request in enumerate(requests):
         rid = request.id
         indices = list(rids_to_trips.get(rid, []))
@@ -98,7 +94,7 @@ def ilp_assignment(trip_list, requests, time_param):
     quick = True  # Adjust as needed
     if quick:
         model.Params.TimeLimit = 60  # Time limit in seconds
-        model.Params.MIPGap = 1e-8
+        model.Params.MIPGap = 1e-4
         model.Params.MIPGapAbs = 0.0
         model.Params.BestObjStop = GRB.INFINITY
     else:
@@ -145,23 +141,23 @@ def ilp_assignment(trip_list, requests, time_param):
 
     return assigned_trips
 
-def ilp_assignement_full(vehicles, requests, time_param, network):
-    """ Performs a sequence of steps, each potentially in parallel, to produce the RTV graph and then assignments.
+def ilp_assignement_full(vehicles, requests, current_time, network):
+    """ Performs all steps in the algorithm.
 
     Args:
         vehicles (list): List of Vehicle instances.
         requests (list): List of Request instances.
-        time_param (int): The current time parameter.
+        current_time (int): The current time parameter.
         network (Network): The network data structure.
 
     Returns:
         dict: A dictionary mapping Vehicle instances to assigned Trip instances.
     """
     print("Building RV graph")
-    rv_edges, rr_edges = rvgenerator(vehicles, requests, time_param, network, threads=1)
+    rv_edges, rr_edges = rvgenerator(vehicles, requests, current_time, network, threads=1)
 
     print("Building RTV graph")
-    trip_list = build_rtv_graph(time_param, rr_edges, rv_edges, vehicles, network)
+    trip_list = build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network)
 
     # Count total number of trips
     total_trips = sum(len(trips) for trips in trip_list.values())
@@ -204,6 +200,6 @@ def ilp_assignement_full(vehicles, requests, time_param, network):
     #             rtv_file.write(f"{trip_info}\n")
 
     # Perform the ILP assignment
-    assigned_trips = ilp_assignment(trip_list, requests, time_param)
+    assigned_trips = ilp_assignment(trip_list, requests, current_time)
 
     return assigned_trips

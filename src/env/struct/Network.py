@@ -23,6 +23,7 @@ class Network:
             self.adjacency_list = self.load_adjacency_list(os.path.join(config['DATAROOT'], config['EDGECOST_FILE']))
         self.dwell_pickup = config['DWELL_PICKUP']
         self.dwell_alight = config['DWELL_ALIGHT']
+        self.shortest_paths = defaultdict(lambda: None) # Store shortest path to avoid recomputation
 
     def load_matrix(self, file_path):
         """
@@ -100,7 +101,7 @@ class Network:
         Gets the distance offset for a given vehicle.
         
         Args:
-            vehicle (Vehicle): The vehicle object containing current and previous nodes and offset.
+            vehicle (Vehicle): The vehicle object containing current and previous nodes and offset (traveled distance from the previous node).
         
         Returns:
             int: The distance offset.
@@ -162,8 +163,11 @@ class Network:
             destination (int): The target node.
         
         Returns:
-            list: The path from origin to destination as a list of node indices.
+            list: The shortest path from origin to destination as a list of node indices.
         """
+        if not (self.shortest_paths[(origin,destination)] is None):
+            return self.shortest_paths[(origin,destination)]
+        
         path = [origin]
         here = origin
         count = 0
@@ -222,5 +226,7 @@ class Network:
             for i in path:
                 print(f"{i}\t{self.get_time(i, destination)}")
             input("Press Enter to continue...")  # Equivalent to `getchar()` in C++
+        
+        self.shortest_paths[(origin,destination)] = path
 
         return path

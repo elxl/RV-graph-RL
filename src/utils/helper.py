@@ -1,3 +1,13 @@
+from dataclasses import dataclass
+from typing import List
+import networkx as nx
+
+@dataclass
+class DataPoint:
+    graph: nx.Graph
+    feasible: List[List[str]]
+    infeasible: List[List[str]]
+
 def get_request_delay(veh, path_new, network):
     """Calculate extra delay cased to onboard passengers by picking up a new request.
 

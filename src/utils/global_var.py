@@ -1,3 +1,6 @@
+# Global parameters
+INTERVAL = 60 # Time interval for simulation
+
 # RV generation
 PRUNING_RV_K = 1000 # Maximum number of rv edges for each vehicle. Set 0 to indicate no pruning.
 PRUNING_RR_K = 1000 # Maximum number of rr edges for each request. Rank by detour factor.
@@ -12,9 +15,45 @@ CTSP_OBJECTIVE = 'CTSP_VTT' # Routing objective. VTT: vehicle time travel; VMT: 
 MAX_DETOUR = 600 # Maximum detour time of passenger
 DWELL_ALIGHT = 0 # Dropoff dwell time
 DWELL_PICKUP = 0 # Pickup dwell time
-MAX_WAITING = 0 # Maximum waiting time before pickup
- # Accelration logic. 
+MAX_WAITING = 300 # Maximum waiting time before pickup
+ # Accelration logic.
  # FIX_ONBOARD: Do not consider previous assignement. Keep onboarding dropoff order if there are more than 4 onboarding + new passengers. Reoptimize if less than 4. 
  # FIX_PREFIX: Consider previous assignement. If new request exceeds LP_LIMITVALUE/2, return infeasible. 
  # Otherwise, follow the order of the previous assignment and reoptimize LP_LIMITVAUE stops
 CTSP = "FIX_ONBOARD"
+
+# Assignement problem
+ALGORITHM = 'ILP_FULL'
+ASSIGNMENT_OBJECTIVE = 'AO_SERVICERATE'
+
+# File directories
+RESULTS_DIRECTORY = './results'
+DATAROOT = './data'
+TIMEFILE = '/map/times.csv'
+DISTFILE = '/map/times.csv'
+EDGECOST_FILE = '/map/edges.csv'
+REQUEST_DATA_FILE = "/requests/requests.csv"
+VEHICLE_DATA_FILE = "/vehicles/vehicles.csv"
+
+# Mapping string values to the corresponding algorithm, objective, or ctsp values
+algorithm_index = {
+    "ILP_FULL": "ILP_FULL"
+}
+
+ctsp_index = {
+    "FULL": "FULL",
+    "FIX_ONBOARD": "FIX_ONBOARD",
+    "FIX_PREFIX": "FIX_PREFIX",
+    "MEGA_TSP": "MEGA_TSP"
+}
+
+ctspobjective_index = {
+    "CTSP_VTT": "CTSP_VTT",
+    "CTSP_TOTALDROPOFFTIME": "CTSP_TOTALDROPOFFTIME",
+    "CTSP_TOTALWAITING": "CTSP_TOTALWAITING"
+}
+
+assignmentobjective_index = {
+    "AO_SERVICERATE": "AO_SERVICERATE",
+    "AO_RMT": "AO_RMT"
+}
