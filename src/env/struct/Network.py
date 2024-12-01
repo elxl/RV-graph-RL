@@ -67,7 +67,7 @@ class Network:
         Returns the travel time between two nodes.
         
         Args:
-            node_one (int): The starting node.
+            node_one (int): The starting node. -10 indicates pickup, -20 indicates dropoff.
             node_two (int): The destination node.
         
         Returns:

@@ -26,6 +26,9 @@ CTSP = "FIX_ONBOARD"
 ALGORITHM = 'ILP_FULL'
 ASSIGNMENT_OBJECTIVE = 'AO_SERVICERATE'
 
+# Simulation
+LAST_MINUTE_SERVICE = False # If waiting at stop as long as possible
+
 # File directories
 RESULTS_DIRECTORY = './results'
 DATAROOT = './data'

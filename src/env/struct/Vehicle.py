@@ -7,10 +7,10 @@ class Vehicle:
     """
 
     # States as constants
-    IDLE = 0
-    ENROUTE = 1
-    IN_USE = 2
-    REBALANCING = 3
+    IDLE = "Idle"
+    ENROUTE = "EnRoute"
+    IN_USE = "InUse"
+    REBALANCING = "Rebalancing"
 
     def __init__(self, vehicle_id, start_time, capacity, node):
         """
@@ -75,20 +75,20 @@ class Vehicle:
         """
         return self.total_rebalance_distance
 
-    def set_state(self, state, time):
+    def set_state(self, state, current_time):
         """
         Changes the vehicle's state and updates time spent in the previous state.
         The time spent in each state (idle, enroute, in use, rebalancing) is updated accordingly.
 
         Args:
             state (int): The new state of the vehicle (IDLE, ENROUTE, IN_USE, REBALANCING).
-            time (int): The current time when the state change occurs.
+            current_time (int): The current time when the latest state change occurs.
         """
         if self.time_stamp == -1:
-            self.time_stamp = time
+            self.time_stamp = current_time
         if state != self.state:
             # Change of state
-            duration = time - self.time_stamp
+            duration = current_time - self.time_stamp
 
             if self.state == Vehicle.IDLE:
                 self.total_idle += duration
@@ -100,7 +100,7 @@ class Vehicle:
                 self.total_rebalancing += duration
 
             self.state = state
-            self.time_stamp = time
+            self.time_stamp = current_time
 
     def get_total_idle(self, time):
         """

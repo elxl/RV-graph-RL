@@ -133,8 +133,8 @@ def ilp_assignment(trip_list, requests, time_param):
         ilpfile.write(f"{time_param}\t")
         ilpfile.write(f"{model.ObjVal}\t")
         ilpfile.write(f"{model.Runtime}\t")
-        ilpfile.write(f"{model.MIPGapAbs}\t")
-        ilpfile.write(f"{model.MIPGap}\t")
+        ilpfile.write(f"{model.Params.MIPGapAbs}\t")
+        ilpfile.write(f"{model.Params.MIPGap}\t")
         ilpfile.write(f"{icount}\t")
         is_optimal = status == GRB.OPTIMAL
         ilpfile.write(f"{'Optimal' if is_optimal else 'Suboptimal'}\n")

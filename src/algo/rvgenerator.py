@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 import math
 import threading
 import networkx as nx
-from src.algo.insersion import travel_timed
+from src.algo.insersion import travel
 from src.env.struct.Vehicle import Vehicle
 from src.env.struct.Request import Request
 from src.env.struct.Network import Network
@@ -74,7 +74,7 @@ def make_rvgraph(rv_data):
 
         for vehicle in vehicles:
             count = 0
-            path = travel_timed(vehicle, [request], network, current_time)
+            path = travel(vehicle, [request], network, current_time)
             if (glo.PRUNING_RV_K > 0) and (count >= glo.PRUNING_RV_K):
                 break
             if path[0] >= 0:
@@ -108,7 +108,7 @@ def make_rrgraph(rr_data):
                 continue
 
             dummyvehicle = Vehicle(0, 0, 4, request1.origin)
-            path = travel_timed(dummyvehicle, [request1, request2], network, current_time)
+            path = travel(dummyvehicle, [request1, request2], network, current_time)
             if path[0] >= 0:
                 compatible_requests.append((request2,path[0]))
         # Kepp the top k links

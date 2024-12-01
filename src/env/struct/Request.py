@@ -32,10 +32,10 @@ class Request:
         self.entry_time = entry_time
         self.boarding_time = boarding_time
         self.alighting_time = alighting_time
-        if latest_alighting is None:
+        if latest_boarding is None:
             self.latest_boarding = entry_time + glo.MAX_WAITING
         else:
-            self.latest_alighting = latest_alighting
+            self.latest_boarding = latest_boarding
         if latest_alighting is None:
             self.latest_alighting = entry_time + ideal_traveltime + glo.MAX_DETOUR
         else:

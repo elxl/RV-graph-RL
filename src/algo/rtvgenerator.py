@@ -55,21 +55,41 @@ def avg_delay(vehicle, node_list, network, current_time):
 
     arrival_time = current_time
     delay = 0.0
+    node = node_list[0]
 
     # First node
-    arrival_time += network.get_vehicle_time(vehicle, node_list[0].node)
+    arrival_time += network.get_vehicle_time(vehicle, node.node)
     if node_list[0].is_pickup:
-        delay += max(0.0, arrival_time - node_list[0].r.entry_time)
+        delay += max(0.0, arrival_time - node.r.entry_time)
     else:
-        delay += max(0.0, arrival_time - (node_list[0].r.entry_time + node_list[0].r.ideal_traveltime))
+        delay += max(0.0, arrival_time - (node.r.entry_time + node.r.ideal_traveltime))
+
+    node_type = (
+        -20 if not node.is_pickup and (1 == len(node_list) or node_list[1].is_pickup or node_list[1].node != node.node)
+        else -10 if node.is_pickup and (1 == len(node_list) or not node_list[1].is_pickup or node_list[1].node != node.node)
+        else node.node
+    )
+
+    dwell = network.get_time(node_type, vehicle.node)
+    arrival_time += dwell
 
     # Process the remaining nodes
-    for i in range(len(node_list) - 1):
-        arrival_time += network.get_time(node_list[i].node, node_list[i + 1].node)
-        if node_list[i + 1].is_pickup:
-            delay += max(0.0, arrival_time - node_list[i + 1].r.entry_time)
+    for i in range(1, len(node_list)):
+        node = node_list[i]
+        arrival_time += network.get_time(node_list[i-1].node, node_list[i].node)
+        if node_list[i].is_pickup:
+            delay += max(0.0, arrival_time - node_list[i-1].r.entry_time)
         else:
-            delay += max(0.0, arrival_time - (node_list[i + 1].r.entry_time + node_list[i + 1].r.ideal_traveltime))
+            delay += max(0.0, arrival_time - (node_list[i].r.entry_time + node_list[i].r.ideal_traveltime))
+
+        node_type = (
+            -20 if not node.is_pickup and (i+1 == len(node_list) or node_list[i+1].is_pickup or node_list[i+1].node != node.node)
+            else -10 if node.is_pickup and (i+1 == len(node_list) or not node_list[i+1].is_pickup or node_list[i+1].node != node.node)
+            else node.node
+        )
+
+        dwell = network.get_time(node_type, vehicle.node)
+        arrival_time += dwell
 
     # Average delay
     return delay / len(node_list)
@@ -113,8 +133,9 @@ def make_rtvgraph(wrap_data, model=None):
 
         # Generate trip for onboard passengers with no new assignment
         baseline = Trip()
-        result = travel_timed(vehicle, [], network, current_time, start_time, glo.RTV_TIMELIMIT, 'STANDARD')
-        baseline.cost, baseline.order_record = result
+        _,path = travel_timed(vehicle, [], network, current_time, start_time, glo.RTV_TIMELIMIT, 'STANDARD')
+        delay = avg_delay(vehicle,path,network,current_time)
+        baseline.cost, baseline.order_record = delay,path
         rounds.append([baseline])
 
         # Get initial pairing of requests connected to the vehicle in rv_graph
@@ -137,7 +158,8 @@ def make_rtvgraph(wrap_data, model=None):
             if path_cost < 0:
                 print(f"Infeasible edge between v{vehicle.id} and r{request.id} at time {current_time}")
             else:
-                trip = Trip(cost=path_cost, order_record=path_order, requests=[request])
+                delay = avg_delay(vehicle,path_order,network,current_time)
+                trip = Trip(cost=delay, order_record=path_order, requests=[request])
                 first_round.append(trip)
         rounds.append(first_round) # Add trip of length one
 

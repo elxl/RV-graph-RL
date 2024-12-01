@@ -302,6 +302,8 @@ def travel(vehicle, requests: List['Request'], network, current_time: int, trigg
     """
     if trigger == "MEMORY":
         return memory(vehicle, network, current_time)
+    elif trigger == "REBALANCING":
+        raise NameError("Rebalancing moudle hasn't been implemented!")
     else:
         return new_travel(vehicle, requests, network, current_time)
 
@@ -350,8 +352,9 @@ def recursive_search_timed(initial_location: int, residual_capacity: int, initia
         new_location = m.node.node
         arrival_time = current_time + network.get_time(initial_location, new_location)
         
-        # if m.node.is_pickup and m.node.r.entry_time > arrival_time:
-        #     arrival_time = m.node.r.entry_time
+        # Compute time of action
+        if m.node.is_pickup and m.node.r.entry_time > arrival_time:
+            arrival_time = m.node.r.entry_time
 
         if prev_action == Action.DROPOFF and (m.node.is_pickup or initial_location != new_location):
             arrival_time += glo.DWELL_ALIGHT # Add dropoff dwell time
