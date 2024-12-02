@@ -25,12 +25,13 @@ def previoustrip(vehicle, network, current_time):
     previous_trip = Trip()
     
     # Call the travel function with the 'MEMORY' mode
-    previous_cost, previous_order = travel_timed(
+    _, previous_order = travel_timed(
         vehicle, vehicle.pending_requests, network, current_time, trigger='MEMORY'
     )
     
     # Set the attributes of the previous_trip
-    previous_trip.cost = previous_cost
+    delay = avg_delay(vehicle,previous_order,network,current_time)
+    previous_trip.cost = delay
     previous_trip.order_record = previous_order
     previous_trip.requests = vehicle.pending_requests.copy()
     previous_trip.use_memory = True

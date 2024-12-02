@@ -128,7 +128,7 @@ def recursive_search(initial_location: int, residual_capacity: int, initially_av
             arrival_time += glo.DWELL_PICKUP # Add pickup dwell time
 
         if m.node.is_pickup and m.node.r.entry_time > arrival_time:
-            arrival_time = m.node.r.entry_ti
+            arrival_time = m.node.r.entry_time
 
         # Check optimality
         if best_time != -1 and arrival_time >= best_time:
@@ -349,8 +349,8 @@ def recursive_search_timed(initial_location: int, residual_capacity: int, initia
         previous = m
 
         # Calculate the time when vehicle finishing serving m
-        new_location = m.node.node
-        arrival_time = current_time + network.get_time(initial_location, new_location)
+        # new_location = m.node.node
+        # arrival_time = current_time + network.get_time(initial_location, new_location)
         
         # Compute time of action
         if m.node.is_pickup and m.node.r.entry_time > arrival_time:

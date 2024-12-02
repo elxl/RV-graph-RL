@@ -11,7 +11,7 @@ MAX_NEW = 8 # Maximum new pickup and dropoff stops
 
 # Trip generation/feasibility check
 LP_LIMITVALUE = 8 # LP_LIMITVALUE/2 is the limit of the number of new requests that is allowed to be assigned to a vehicle at one time
-CTSP_OBJECTIVE = 'CTSP_VTT' # Routing objective. VTT: vehicle time travel; VMT: vehicle distance travel (TODO)
+CTSP_OBJECTIVE = 'CTSP_AVGDELAY' # Routing objective. VTT: vehicle time travel; VMT: vehicle distance travel (TODO)
 MAX_DETOUR = 600 # Maximum detour time of passenger
 DWELL_ALIGHT = 0 # Dropoff dwell time
 DWELL_PICKUP = 0 # Pickup dwell time
@@ -21,6 +21,11 @@ MAX_WAITING = 300 # Maximum waiting time before pickup
  # FIX_PREFIX: Consider previous assignement. If new request exceeds LP_LIMITVALUE/2, return infeasible. 
  # Otherwise, follow the order of the previous assignment and reoptimize LP_LIMITVAUE stops
 CTSP = "FIX_ONBOARD"
+CARSIZE = 4
+INITIAL_TIME = 0
+FINAL_TIME = 10000
+VEHICLE_LIMIT = 1000
+ALPHA=0.5
 
 # Assignement problem
 ALGORITHM = 'ILP_FULL'
@@ -28,6 +33,7 @@ ASSIGNMENT_OBJECTIVE = 'AO_SERVICERATE'
 
 # Simulation
 LAST_MINUTE_SERVICE = False # If waiting at stop as long as possible
+
 
 # File directories
 RESULTS_DIRECTORY = './results'
@@ -53,7 +59,8 @@ ctsp_index = {
 ctspobjective_index = {
     "CTSP_VTT": "CTSP_VTT",
     "CTSP_TOTALDROPOFFTIME": "CTSP_TOTALDROPOFFTIME",
-    "CTSP_TOTALWAITING": "CTSP_TOTALWAITING"
+    "CTSP_TOTALWAITING": "CTSP_TOTALWAITING",
+    "CTSP_AVGDELAY": "CTSP_AVGDELAY"
 }
 
 assignmentobjective_index = {
