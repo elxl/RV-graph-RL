@@ -113,7 +113,7 @@ while current_time < glo.FINAL_TIME - glo.INTERVAL:
 
     # Run trip assignement
     print(f"{Fore.YELLOW}Starting trip assignement...{Style.RESET_ALL}")
-    assigned_trips = ilp_assignement_full(active_vehicles,active_requests,current_time,network)
+    assigned_trips = ilp_assignement_full(active_vehicles,active_requests,current_time,network,args.threads)
 
     # Remove blank trips
     blank_trips = {

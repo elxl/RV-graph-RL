@@ -25,22 +25,23 @@ def previoustrip(vehicle, network, current_time):
     previous_trip = Trip()
     
     # Call the travel function with the 'MEMORY' mode
-    _, previous_order = travel_timed(
+    path_cost, previous_order = travel_timed(
         vehicle, vehicle.pending_requests, network, current_time, trigger='MEMORY'
     )
     
     # Set the attributes of the previous_trip
-    delay = avg_delay(vehicle,previous_order,network,current_time)
-    previous_trip.cost = delay
+    if glo.CTSP_OBJECTIVE == "CTSP_DELAY":
+        path_cost = delay_all(vehicle,previous_order,network,current_time)
+    previous_trip.cost = path_cost
     previous_trip.order_record = previous_order
     previous_trip.requests = vehicle.pending_requests.copy()
     previous_trip.use_memory = True
     
     return previous_trip
 
-def avg_delay(vehicle, node_list, network, current_time):
+def delay_all(vehicle, node_list, network, current_time):
     """
-    Calculate the average delay for a trip.
+    Calculate the delay for a trip.
     
     Args:
         vehicle (Vehicle): The vehicle object.
@@ -60,9 +61,7 @@ def avg_delay(vehicle, node_list, network, current_time):
 
     # First node
     arrival_time += network.get_vehicle_time(vehicle, node.node)
-    if node_list[0].is_pickup:
-        delay += max(0.0, arrival_time - node.r.entry_time)
-    else:
+    if not node_list[0].is_pickup:
         delay += max(0.0, arrival_time - (node.r.entry_time + node.r.ideal_traveltime))
 
     node_type = (
@@ -78,9 +77,7 @@ def avg_delay(vehicle, node_list, network, current_time):
     for i in range(1, len(node_list)):
         node = node_list[i]
         arrival_time += network.get_time(node_list[i-1].node, node_list[i].node)
-        if node_list[i].is_pickup:
-            delay += max(0.0, arrival_time - node_list[i-1].r.entry_time)
-        else:
+        if not node_list[i].is_pickup:
             delay += max(0.0, arrival_time - (node_list[i].r.entry_time + node_list[i].r.ideal_traveltime))
 
         node_type = (
@@ -93,7 +90,7 @@ def avg_delay(vehicle, node_list, network, current_time):
         arrival_time += dwell
 
     # Average delay
-    return delay / len(node_list)
+    return delay
 
 def prepare_input(clique):
     """Prepare clique to be input to the prediction model.
@@ -134,19 +131,18 @@ def make_rtvgraph(wrap_data, model=None):
 
         # Generate trip for onboard passengers with no new assignment
         baseline = Trip()
-        _,path = travel_timed(vehicle, [], network, current_time, start_time, glo.RTV_TIMELIMIT, 'STANDARD')
-        delay = avg_delay(vehicle,path,network,current_time)
-        baseline.cost, baseline.order_record = delay,path
+        cost,path = travel_timed(vehicle, [], network, current_time, start_time, glo.RTV_TIMELIMIT, 'STANDARD')
+        if glo.CTSP_OBJECTIVE == "CTSP_DELAY":
+            cost = delay_all(vehicle,path,network,current_time)
+        baseline.cost, baseline.order_record = cost,path
         rounds.append([baseline])
 
         # Get initial pairing of requests connected to the vehicle in rv_graph
         with mtx:
             vehicle_id = vehicle.id
             if rv_graph.has_node(f'v{vehicle_id}'):
-                # Get connected requests id of the vehicle on rv_graph
-                neighbor_labels = set(label for label in rv_graph.neighbors(f'v{vehicle_id}'))
                 # Retrieve the Request objects
-                initial_pairing = {rv_graph.nodes[neighbor_label]['request'] for neighbor_label in neighbor_labels}
+                initial_pairing = {rv_graph.nodes[neighbor_label]['request'] for neighbor_label in rv_graph.neighbors(f'v{vehicle_id}')}
             else:
                 initial_pairing = set()
         initial_pairing.update(vehicle.pending_requests) # Add assigned trip from the previous assignment
@@ -159,8 +155,9 @@ def make_rtvgraph(wrap_data, model=None):
             if path_cost < 0:
                 print(f"Infeasible edge between v{vehicle.id} and r{request.id} at time {current_time}")
             else:
-                delay = avg_delay(vehicle,path_order,network,current_time)
-                trip = Trip(cost=delay, order_record=path_order, requests=[request])
+                if glo.CTSP_OBJECTIVE == "CTSP_DELAY":
+                    path_cost = delay_all(vehicle,path_order,network,current_time)
+                trip = Trip(cost=path_cost, order_record=path_order, requests=[request])
                 first_round.append(trip)
         rounds.append(first_round) # Add trip of length one
 
@@ -187,13 +184,13 @@ def make_rtvgraph(wrap_data, model=None):
                     if len(combined_requests) != k or frozenset(combined_requests) in existing_trips:
                         continue
 
-                    # Check for maximum new requests
+                    # Reject if there are too many new requests
                     new_requests = combined_requests - previous_assigned_passengers
                     if len(new_requests) * 2 > glo.MAX_NEW:
                         continue
 
                     # Check RR connectivity using rr_graph
-                    if not is_rr_connected(combined_requests, rr_graph):
+                    if not is_rr_connected(trip1.requests, trip2.requests, rr_graph):
                         continue
 
                     # Check if all subsets exist
@@ -214,20 +211,24 @@ def make_rtvgraph(wrap_data, model=None):
 
                     # Calculate route and delay
                     path_cost, path_order = travel_timed(
-                        vehicle, list(combined_requests), network, current_time, start_time, glo.RTV_TIMELIMIT, 'STANDARD'
+                        vehicle, list(combined_requests), network, current_time, start_time, glo.RTV_TIMELIMIT, trigger='STANDARD'
                     )
                     if path_cost < 0:
                         continue
                     else:
                         # Add the new trip
-                        delay = avg_delay(vehicle,path_order,network,current_time)
-                        trip = Trip(cost=delay, order_record=path_order, requests=list(combined_requests))
+                        if glo.CTSP_OBJECTIVE == "CTSP_DELAY":
+                            path_cost = delay_all(vehicle,path_order,network,current_time)
+                        trip = Trip(cost=path_cost, order_record=path_order, requests=list(combined_requests))
                         new_round.append(trip)
                         existing_trips.add(frozenset(combined_requests))
             rounds.append(new_round)
 
         # Compile potential trip list
         potential_trips = [trip for round_trips in rounds for trip in round_trips]
+        for trip in potential_trips:
+            if trip.cost == -1:
+                raise RuntimeError("Negative cost in potential trips!!!")
 
         # Include previous assignment if any
         if vehicle.order_record:
@@ -240,14 +241,16 @@ def make_rtvgraph(wrap_data, model=None):
         with mtx:
             trip_list[vehicle] = potential_trips # trip_list: {Vehicle:[Trip]}
 
-def is_rr_connected(requests, rr_graph):
+def is_rr_connected(requests1, requests2, rr_graph):
     """Check if all requests are connected in the RR graph."""
-    request_ids = [request.id for request in requests]
-    for i, req_id1 in enumerate(request_ids):
-        for req_id2 in request_ids[i + 1:]:
-            with mtx:
-                if not rr_graph.has_edge(f'r{req_id1}', f'r{req_id2}'):
-                    return False
+    request_ids1 = [request.id for request in requests1]
+    request_ids2 = [request.id for request in requests2]
+    for r1 in request_ids1:
+        for r2 in request_ids2:
+            if r1!=r2:
+                with mtx:
+                    if (not rr_graph.has_edge(f'r{r1}', f'r{r2}')) and (not rr_graph.has_edge(f'r{r2}', f'r{r1}')):
+                        return False         
     return True
 
 def all_subsets_exist(requests, previous_round):
@@ -263,22 +266,21 @@ def build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, threads
     """
     Build the RTV graph by sorting vehicles and running make_rtvgraph in parallel.
     """
-    print("Building RTV graph")  # Assuming 'info' logs the message
     trip_list = {}  # Dictionary to store possible trips per vehicle
 
     # Sort the vehicles based on custom criteria
-    sorted_vs = sorted(
-        vehicles,
-        key=lambda a: (
-            # Priority 1: Vehicles that have entries in rv_edges
-            len(list(rv_edges.neighbors(f'v{a.id}')))!=0,
-            # Priority 2: Number of edges in rv_edges (descending)
-            len(list(rv_edges.neighbors(f'v{a.id}'))),
-            # Priority 3: Vehicle ID (ascending)
-            -a.id
-        ),
-        reverse=True
-    )
+    # sorted_vs = sorted(
+    #     vehicles,
+    #     key=lambda a: (
+    #         # Priority 1: Vehicles that have entries in rv_edges
+    #         len(list(rv_edges.neighbors(f'v{a.id}')))!=0,
+    #         # Priority 2: Number of edges in rv_edges (descending)
+    #         len(list(rv_edges.neighbors(f'v{a.id}'))),
+    #         # Priority 3: Vehicle ID (ascending)
+    #         -a.id
+    #     ),
+    #     reverse=True
+    # )
 
     # Prepare data for threading
     rtv_data = {
@@ -287,17 +289,17 @@ def build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, threads
         'rv_edges': rv_edges,
         'trip_list': trip_list,
         'network': network,
-        'vehicles': sorted_vs
+        'vehicles': vehicles
     }
 
     # Use ThreadPoolExecutor for parallel execution
     with ThreadPoolExecutor(max_workers=threads) as executor:
         # Calculate the range of vehicles each thread will process
-        vehicles_per_thread = len(sorted_vs) // threads
+        vehicles_per_thread = len(vehicles) // threads
         futures = []
         for i in range(threads):
             start = i * vehicles_per_thread
-            end = (i + 1) * vehicles_per_thread if i < threads - 1 else len(sorted_vs)
+            end = (i + 1) * vehicles_per_thread if i < threads - 1 else len(vehicles)
             thread_data = {
                 'start': start,
                 'end': end,

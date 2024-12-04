@@ -3,7 +3,7 @@
 import src.utils.global_var as glo
 
 class Request:
-    def __init__(self, request_id=None, origin=None, destination=None, entry_time=0, origin_longitude=None, origin_latitude=None, destination_longitude=None, destination_latitude=None, ideal_traveltime=0, boarding_time=0, alighting_time=0, latest_boarding=0, latest_alighting=0,
+    def __init__(self, request_id=None, origin=None, destination=None, entry_time=0, origin_longitude=None, origin_latitude=None, destination_longitude=None, destination_latitude=None, ideal_traveltime=0, boarding_time=0, alighting_time=0, latest_boarding=None, latest_alighting=None,
                  shared=False, assigned=False):
         """
         Initializes a Request object representing a passenger request with details such as origin, destination, timings, and coordinates.

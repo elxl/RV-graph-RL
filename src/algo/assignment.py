@@ -3,10 +3,6 @@ from src.algo.rvgenerator import rvgenerator
 from src.algo.rtvgenerator import build_rtv_graph
 import src.utils.global_var as glo
 
-# Constants (define these according to your application)
-MISS_COST = 10000000  # Cost for unassigned requests
-RMT_REWARD = 100    # Reward multiplier for RMT objective
-OPTIMIZER_VERBOSE = True  # Set to True for verbose output
 
 def ilp_assignment(trip_list, requests, time_param):
     """
@@ -50,7 +46,7 @@ def ilp_assignment(trip_list, requests, time_param):
     # Create a new Gurobi model
     model = Model("Assignment ILP")
 
-    if not OPTIMIZER_VERBOSE:
+    if not glo.OPTIMIZER_VERBOSE:
         model.Params.OutputFlag = 0  # Turn off Gurobi output
 
     # Variables
@@ -59,10 +55,10 @@ def ilp_assignment(trip_list, requests, time_param):
 
     # Objective function
     if glo.ASSIGNMENT_OBJECTIVE == 'AO_SERVICERATE':
-        obj = quicksum(costs[i] * e[i] for i in range(num_trips)) + MISS_COST * x.sum()
+        obj = quicksum(costs[i] * e[i] for i in range(num_trips)) + glo.MISS_COST * x.sum()
     elif glo.ASSIGNMENT_OBJECTIVE == 'AO_RMT':
         travel_times = [request.ideal_traveltime for request in requests]
-        obj = quicksum(costs[i] * e[i] for i in range(num_trips)) + RMT_REWARD * quicksum(travel_times[k] * x[k] for k in range(num_requests))
+        obj = quicksum(costs[i] * e[i] for i in range(num_trips)) + glo.RMT_REWARD * quicksum(travel_times[k] * x[k] for k in range(num_requests))
     else:
         # Default or raise an exception
         raise ValueError("Invalid assignment objective.")
@@ -96,12 +92,12 @@ def ilp_assignment(trip_list, requests, time_param):
         model.Params.TimeLimit = 60  # Time limit in seconds
         model.Params.MIPGap = 1e-4
         model.Params.MIPGapAbs = 0.0
-        model.Params.BestObjStop = GRB.INFINITY
+        # model.Params.BestObjStop = GRB.INFINITY
     else:
         model.Params.TimeLimit = 60
         model.Params.MIPGap = 1e-8
         model.Params.MIPGapAbs = 0.0
-        model.Params.BestObjStop = GRB.INFINITY
+        # model.Params.BestObjStop = GRB.INFINITY
 
     # Solve the model
     model.optimize()
@@ -141,7 +137,7 @@ def ilp_assignment(trip_list, requests, time_param):
 
     return assigned_trips
 
-def ilp_assignement_full(vehicles, requests, current_time, network):
+def ilp_assignement_full(vehicles, requests, current_time, network,threads=1):
     """ Performs all steps in the algorithm.
 
     Args:
@@ -149,12 +145,13 @@ def ilp_assignement_full(vehicles, requests, current_time, network):
         requests (list): List of Request instances.
         current_time (int): The current time parameter.
         network (Network): The network data structure.
+        threads (int): Number of threads.
 
     Returns:
         dict: A dictionary mapping Vehicle instances to assigned Trip instances.
     """
     print("Building RV graph")
-    rv_edges, rr_edges = rvgenerator(vehicles, requests, current_time, network, threads=1)
+    rv_edges, rr_edges = rvgenerator(vehicles, requests, current_time, network, threads)
 
     print("Building RTV graph")
     trip_list = build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network)

@@ -6,6 +6,7 @@ from src.algo.insersion import travel
 from src.env.struct.Vehicle import Vehicle
 from src.env.struct.Request import Request
 from src.env.struct.Network import Network
+from operator import itemgetter
 
 import src.utils.global_var as glo
 # Create locks for each shared resource
@@ -72,8 +73,20 @@ def make_rvgraph(rv_data):
         with lock:
             rv_graph.add_node(f'r{request.id}', request=request, label='r')  # Add request node with label "r"
 
-        for vehicle in vehicles:
-            count = 0
+        nearest_vs = []
+        buffer = 0
+
+        for v in vehicles:
+            min_wait = network.get_vehicle_time(v, request.origin) - buffer
+            if current_time + min_wait > request.latest_boarding:
+                continue
+            nearest_vs.append((min_wait, v))
+
+        # Sort the list based on `min_wait` (the first element of the tuple)
+        nearest_vs.sort(key=itemgetter(0))
+
+        count = 0
+        for _,vehicle in nearest_vs:
             path = travel(vehicle, [request], network, current_time)
             if (glo.PRUNING_RV_K > 0) and (count >= glo.PRUNING_RV_K):
                 break
@@ -107,6 +120,12 @@ def make_rrgraph(rr_data):
             if request1 == request2:
                 continue
 
+            # Prune the requests without calling the travel function
+            buffer = 0
+            min_wait = network.get_time(request1.origin, request2.origin) - buffer
+            if min_wait+max(current_time,request1.entry_time) > request2.latest_boarding:
+                continue
+
             dummyvehicle = Vehicle(0, 0, 4, request1.origin)
             path = travel(dummyvehicle, [request1, request2], network, current_time)
             if path[0] >= 0:
@@ -116,6 +135,7 @@ def make_rrgraph(rr_data):
         compatible_requests = compatible_requests[:glo.PRUNING_RR_K]
         for request2, cost in compatible_requests:
             with lock:
+                rr_graph.add_node(f'r{request2.id}', request=request2, label='r')  # Add request node with label "r"
                 rr_graph.add_edge(f'r{request1.id}', f'r{request2.id}', weight=cost)  # Add rr edge with path cost. TODO: calculate edge weights
 
 # Function to handle thread distribution
@@ -169,7 +189,7 @@ def rvgenerator(vehicles, requests, current_time, network, threads=1):
         merged_graph: complete graph contains both RV and RR subgraphs.
     """
     # Build RV graph
-    rv_graph = nx.DiGraph()  # Directed graph for RV (vehicle -> request)
+    rv_graph = nx.Graph()  # Directed graph for RV (vehicle -> request)
     auto_thread(
         job_count=len(requests),
         function=make_rvgraph,
@@ -183,7 +203,7 @@ def rvgenerator(vehicles, requests, current_time, network, threads=1):
     )
 
     # Build RR graph
-    rr_graph = nx.DiGraph()  # Undirected graph for RR (request -> request)
+    rr_graph = nx.DiGraph()  # Directed graph for RR (request -> request)
     auto_thread(
         job_count=len(requests),
         function=make_rrgraph,

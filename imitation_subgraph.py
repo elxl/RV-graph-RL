@@ -91,6 +91,12 @@ parser.add_argument(
     default=0,
     help="Either using wandb or not."
 )
+parser.add_argument(
+    '--VERBOSE',
+    type=int,
+    default=0,
+    help="Either output training statistic to terminal."
+)
 
 def load_data_points(filepath):
     with open(filepath, 'rb') as f:
@@ -141,26 +147,29 @@ def preprocess_data(data_points: List[DataPoint]):
     dataset = []
     
     for data in data_points:
-        # Process feasible subgraphs with label 1
+        #Process feasible subgraphs with label 1
+        num_sample = min(len(data.feasible),len(data.infeasible))
+        batch_int = (num_sample//args.BATCH)
+        num_sample = batch_int * args.BATCH
         num = 0
         for nodes in data.feasible:
-            if len(nodes)==3:
+            if len(nodes)>=3:
                 subgraph_data = extract_subgraph(data.graph, nodes)
                 subgraph_data.y = torch.tensor([1], dtype=torch.float)
                 dataset.append(subgraph_data)
                 num +=1
-                if num>=160:
+                if num>=num_sample:
                     break
         
         # Process infeasible subgraphs with label 0
         num=0
         for nodes in data.infeasible:
-            if len(nodes)==3:
+            if len(nodes)>=3:
                 subgraph_data = extract_subgraph(data.graph, nodes)
                 subgraph_data.y = torch.tensor([0], dtype=torch.float)
                 dataset.append(subgraph_data)
                 num+=1
-                if num>=160:
+                if num>=num_sample:
                     break
     
     return dataset
@@ -174,17 +183,26 @@ if args.DATA.endswith("pkl"):
 
     # Use the DataLoader for batch processing
     dataset = preprocess_data(data_points[10:20])
-    # filepath = args.DATA.split(".pkl")[0] + '_single.pt'
+    # filepath = args.DATA.split(".pkl")[0] + '.pt'
     # torch.save(dataset, filepath)
     # print(f"Data processed. Processed file saved to {filepath}")
 else:
     dataset = torch.load(args.DATA)
     print(f"Data loaded from {args.DATA}")
 # Split the dataset into train and test sets (80-20 split)
-train_data, test_data = train_test_split(dataset, test_size=1-args.TRAIN_SPLIT, random_state=42)
+dataset_sampled = dataset#random.sample(dataset, 64000)
+positive = 0
+negative = 0
+for each in dataset_sampled:
+    if each.y[0] == 0:
+        negative += 1
+    else:
+        positive += 1
+print(f"Sample ratio {(positive/negative):.2f}")
+train_data, test_data = train_test_split(dataset_sampled, test_size=1-args.TRAIN_SPLIT, random_state=42)
 
-train_loader = DataLoader(train_data, batch_size=args.BATCH, shuffle=True)
-test_loader = DataLoader(test_data, batch_size=args.BATCH, shuffle=False)
+train_loader = DataLoader(train_data, batch_size=args.BATCH, shuffle=True,num_workers=0)
+test_loader = DataLoader(test_data, batch_size=args.BATCH, shuffle=False,num_workers=0)
 
 print("Set up training model ...")
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -283,8 +301,12 @@ for epoch in range(epochs):
             "Test Loss": test_loss, "Test Accuracy": test_accuracy,
             "Precision": precision.compute(), "Recall": recall.compute()})
 
-    # print(f"Epoch [{epoch+1}/{epochs}], ", f"Train Loss: {total_loss/len(train_loader):.4f}, Train Accuracy: {train_accuracy:.4f}",
-    #     f"Precision: {precision.compute():.4f}", f"Recall: {recall.compute():.4f}",
-    #       f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
+    if args.VERBOSE:
+        print(f"Epoch [{epoch+1}/{epochs}], ", f"Train Loss: {total_loss/len(train_loader):.4f}, Train Accuracy: {train_accuracy:.4f}",
+            f"Precision: {precision.compute():.4f}", f"Recall: {recall.compute():.4f}",
+            f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
     precision.reset()
     recall.reset()
+
+    if epoch%50 == 0:
+        torch.save(model.state_dict(),"./results/steps_10_20_all_delay.pt")

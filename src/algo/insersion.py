@@ -252,7 +252,7 @@ def new_travel(vehicle, requests: List['Request'], network, current_time: int) -
     # Call the recursive cost function to compute the optimal route
     call_time = current_time + vehicle.offset
     start_node = vehicle.node
-    if glo.CTSP_OBJECTIVE == "CTSP_VTT":
+    if glo.CTSP_OBJECTIVE == "CTSP_VTT" or glo.CTSP_OBJECTIVE == "CTSP_DELAY":
         optimal = recursive_search(start_node, vehicle.capacity - len(vehicle.passengers),
                                    initially_available, network, call_time, -1)
     else:
@@ -286,7 +286,7 @@ def memory(vehicle, network, current_time: int) -> Tuple[int, List[NodeStop]]:
     optimal = recursive_search(vehicle.node, vehicle.capacity - len(vehicle.passengers), initially_available, network, current_time, -1, Action.NO_ACTION)
     return format_path(optimal, current_time)
 
-def travel(vehicle, requests: List['Request'], network, current_time: int, trigger='MEMORY') -> Tuple[int, List[NodeStop]]:
+def travel(vehicle, requests: List['Request'], network, current_time: int, trigger='STANDARD') -> Tuple[int, List[NodeStop]]:
     """
     Determines the optimal route for a vehicle given the current state and a set of requests.
 
@@ -349,12 +349,12 @@ def recursive_search_timed(initial_location: int, residual_capacity: int, initia
         previous = m
 
         # Calculate the time when vehicle finishing serving m
-        # new_location = m.node.node
-        # arrival_time = current_time + network.get_time(initial_location, new_location)
+        new_location = m.node.node
+        arrival_time = current_time + network.get_time(initial_location, new_location)
         
         # Compute time of action
-        if m.node.is_pickup and m.node.r.entry_time > arrival_time:
-            arrival_time = m.node.r.entry_time
+        # if m.node.is_pickup and m.node.r.entry_time > arrival_time:
+        #     arrival_time = m.node.r.entry_time
 
         if prev_action == Action.DROPOFF and (m.node.is_pickup or initial_location != new_location):
             arrival_time += glo.DWELL_ALIGHT # Add dropoff dwell time
@@ -487,7 +487,7 @@ def new_travel_timed(vehicle, requests: List['Request'], network, current_time: 
     call_time = current_time + vehicle.offset
     # start_time = time()
     start_node = vehicle.node
-    if glo.CTSP_OBJECTIVE == "CTSP_VTT":
+    if glo.CTSP_OBJECTIVE == "CTSP_VTT" or glo.CTSP_OBJECTIVE == "CTSP_DELAY":
         optimal = recursive_search_timed(start_node, vehicle.capacity - len(vehicle.passengers),
                                    initially_available, network, call_time, start_time, time_limit, -1)
     else:
@@ -495,7 +495,7 @@ def new_travel_timed(vehicle, requests: List['Request'], network, current_time: 
 
     return format_path(optimal, current_time)
 
-def travel_timed(vehicle, requests: List['Request'], network, current_time: int, time_limit=0, start_time=0, trigger='STANDARD') -> Tuple[int, List[NodeStop]]:
+def travel_timed(vehicle, requests: List['Request'], network, current_time: int, start_time=0, time_limit=0, trigger='STANDARD') -> Tuple[int, List[NodeStop]]:
     """
     Determines the optimal route for a vehicle given the current state and a set of requests.
 
