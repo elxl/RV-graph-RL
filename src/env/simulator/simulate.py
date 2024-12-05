@@ -19,11 +19,12 @@ def move_jobless_vehicle(vehicle, network):
         # Move vehicle to the destination and update travel distance
         distance = network.get_distance(origin,desination)
         vehicle.add_distance(distance)
-        vehicle.pre_node = desination
+        vehicle.prev_node = desination
         vehicle.offset = 0
     else:
         # Update required time before arriving at destination
         vehicle.offset -= glo.INTERVAL
+    vehicle.order_record.clear()
 
 def move_vehicle(vehicle, trip, network, current_time):
     """ Move vehicle with assignment.
@@ -147,7 +148,7 @@ def move_vehicle(vehicle, trip, network, current_time):
                     current_time += traveltime
                     traveltime_left -= traveltime
                     vehicle.add_distance(network.get_distance(origin, destination))
-                    vehicle.pre_node = destination
+                    vehicle.prev_node = destination
 
         if interrupted:
             break
@@ -199,7 +200,9 @@ def move_vehicle(vehicle, trip, network, current_time):
 
     # Final updates for the vehicle
     vehicle.passengers = list(onboard)
-    vehicle.order_record = path[job_completed:] if trigger != "REBALANCING" else []
+    vehicle.order_record.clear()
+    if trigger != "REBALANCING":
+        vehicle.order_record.extend(path[job_completed:])
     vehicle.pending_requests = list(pending_requests)
 
     if rebalancing:
@@ -223,9 +226,14 @@ def simulate_vehicle(vehicle, assignments, network, current_time):
     trip = assignments.get(vehicle, None)
 
     # Dispatch by job type
+    # if trip and (trip.requests or vehicle.passengers):
+    #     print("True")
     if trip and (trip.requests or vehicle.passengers):
+    # if trip and (len(trip.requests)!=0 or len(vehicle.passengers)!=0):
+        # Move vehicle with delivery task
         move_vehicle(vehicle, trip, network, current_time)
     elif vehicle.offset:
+        # Move vehicle without assigned task but still on way to last destination
         move_jobless_vehicle(vehicle, network)
     else:
         vehicle.order_record.clear()

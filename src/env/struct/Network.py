@@ -5,7 +5,9 @@ It includes methods to handle vehicle travel offsets and shortest-path calculati
 
 import os
 import math
-from collections import deque, defaultdict
+from collections import deque, defaultdict, namedtuple
+
+Neighbor = namedtuple("Neighbor", ["target","weight"])
 
 class Network:
     def __init__(self, config):
@@ -59,7 +61,7 @@ class Network:
                 origin, dest = origin - 1, dest - 1  # Adjust to zero-index
                 if len(adjacency_list) < origin + 1:
                     adjacency_list.extend([[] for _ in range(origin + 1 - len(adjacency_list))])
-                adjacency_list[origin].append((dest, length))
+                adjacency_list[origin].append(Neighbor(target=dest, weight=length))
         return adjacency_list
 
     def get_time(self, node_one, node_two):
@@ -178,16 +180,16 @@ class Network:
 
             # Try to take a strict step.
             for neighbor in self.adjacency_list[here]:
-                n_node = neighbor['target']
-                time = neighbor['weight']
+                n_node = neighbor.target
+                weight = neighbor.weight
 
                 if n_node == destination:
                     node = n_node
                     break
 
                 follow_up = self.get_time(n_node, destination)
-                if time > 0 and time + follow_up < best:
-                    best = time + follow_up
+                if weight > 0 and weight + follow_up < best:
+                    best = weight + follow_up
                     node = n_node
 
             # Logic for handling zero-weight paths if no good choice was found.
@@ -197,24 +199,24 @@ class Network:
                 comparison = self.get_time(here, destination)
 
                 for neighbor in self.adjacency_list[here]:
-                    if neighbor['weight'] + self.get_time(neighbor['target'], destination) <= comparison:
+                    if neighbor.weight + self.get_time(neighbor.target, destination) <= comparison:
                         zeros.append(neighbor)
-                        heritage[neighbor['target']].append(neighbor['target'])
+                        heritage[neighbor.target].append(neighbor.target)
 
                 while zeros and node == -1:
                     n = zeros.popleft()
 
-                    for child in self.adjacency_list[n['target']]:
-                        if child['weight'] + self.get_time(child['target'], destination) <= comparison:
-                            if child['weight'] > 0 or child['target'] == destination:
-                                path.extend(heritage[n['target']])
-                                node = child['target']
+                    for child in self.adjacency_list[n.target]:
+                        if child.weight + self.get_time(child.target, destination) <= comparison:
+                            if child.weight > 0 or child.target == destination:
+                                path.extend(heritage[n.target])
+                                node = child.target
                                 break
 
-                            if child['target'] not in heritage:
+                            if child.target not in heritage:
                                 zeros.append(child)
-                                new_heritage = heritage[n['target']] + [child['target']]
-                                heritage[child['target']] = new_heritage
+                                new_heritage = heritage[n.target] + [child.target]
+                                heritage[child.target] = new_heritage
 
             path.append(node)
             here = node

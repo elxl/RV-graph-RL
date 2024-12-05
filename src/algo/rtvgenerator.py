@@ -129,7 +129,7 @@ def make_rtvgraph(wrap_data, model=None):
         rounds = []
         previous_assigned_passengers = set(vehicle.pending_requests)
 
-        # Generate trip for onboard passengers with no new assignment
+        # Generate trip for onboard passengers with no new assignment (deliever onboard passengers)
         baseline = Trip()
         cost,path = travel_timed(vehicle, [], network, current_time, start_time, glo.RTV_TIMELIMIT, 'STANDARD')
         if glo.CTSP_OBJECTIVE == "CTSP_DELAY":
@@ -230,12 +230,15 @@ def make_rtvgraph(wrap_data, model=None):
             if trip.cost == -1:
                 raise RuntimeError("Negative cost in potential trips!!!")
 
-        # Include previous assignment if any
+        # Include previous assignment if any and if not already included
+        potential_trips_request_id = [[stop.r.id for stop in trip.order_record] for trip in rounds[len(vehicle.pending_requests)]]
         if vehicle.order_record:
-            previous_trip = previoustrip(vehicle, network, current_time)
-            if previous_trip.cost == -1:
-                raise RuntimeError(f"Previous assignment no longer feasible for vehicle {vehicle.id}")
-            potential_trips.append(previous_trip)
+            request_id_vehicle = [stop.r.id for stop in vehicle.order_record]
+            if request_id_vehicle not in potential_trips_request_id:               
+                previous_trip = previoustrip(vehicle, network, current_time)
+                if previous_trip.cost == -1:
+                    raise RuntimeError(f"Previous assignment no longer feasible for vehicle {vehicle.id}")
+                potential_trips.append(previous_trip)
 
         # Update trip list
         with mtx:

@@ -96,12 +96,14 @@ print(f"{Fore.GREEN}Done with all set up!{Style.RESET_ALL}")
 print(f"{Fore.CYAN}Starting iterations!{Style.RESET_ALL}")
 current_time = glo.INITIAL_TIME - glo.INTERVAL
 while current_time < glo.FINAL_TIME - glo.INTERVAL:
-     
+
     current_time += glo.INTERVAL
-    print(f"{Fore.GREEN}Updated simulation clock to {encode_time(current_time)} \
+    print(f"{Fore.WHITE}Updated simulation clock to {encode_time(current_time)} \
            \t System time {datetime.datetime.now().time()}{Style.RESET_ALL}")
-     
-    # Get active vehicles and new requests for current iteration
+
+    #############################################################
+    # Get active vehicles and new requests for current iteration#
+    #############################################################
     print(f"{Fore.YELLOW}Update request buffer...{Style.RESET_ALL}")
     active_vehicles = get_active_vehicles(vehicles,current_time)
     new_requests = get_new_requests(requests,current_time)
@@ -111,7 +113,9 @@ while current_time < glo.FINAL_TIME - glo.INTERVAL:
 
     print(f"{Fore.GREEN}Buffer update complete!{Style.RESET_ALL}")
 
-    # Run trip assignement
+    #########################################
+    ########### Run trip assignement ########
+    #########################################
     print(f"{Fore.YELLOW}Starting trip assignement...{Style.RESET_ALL}")
     assigned_trips = ilp_assignement_full(active_vehicles,active_requests,current_time,network,args.threads)
 
@@ -132,12 +136,16 @@ while current_time < glo.FINAL_TIME - glo.INTERVAL:
 
     print(f"{Fore.GREEN}{len(assigned_trips)} assignements have been made!{Style.RESET_ALL}")
 
-    # Move vehicles
+    ###########################################
+    ############## Move vehicles ##############
+    ###########################################
     print(f"{Fore.YELLOW}Vehicle moving to assigned passengers...{Style.RESET_ALL}")
     simulate_vehicles(vehicles,assigned_trips,network,current_time,args.threads)
     print(f"{Fore.GREEN}Vehicle movement completed!{Style.RESET_ALL}")
 
-    # Update statistics
+    ##########################################################
+    ############ Update statistics and log information #######
+    ##########################################################
     for vehicle in vehicles:
         # Process boarded requests
         for r in vehicle.just_boarded:
@@ -150,7 +158,7 @@ while current_time < glo.FINAL_TIME - glo.INTERVAL:
             stats_dropoff_count += 1
             stats_total_in_vehicle_time += r.alighting_time - r.boarding_time
             stats_total_delay += r.alighting_time - r.boarding_time - r.ideal_traveltime
-            stats_shared_count += int(r.shared)  # Convert boolean to integer for accumulation
+            stats_shared_count += int(r.shared)
 
     with open(results_file, "a") as f:
         f.write(f"Time stamp: {encode_time(current_time)} \n")
@@ -207,11 +215,14 @@ while current_time < glo.FINAL_TIME - glo.INTERVAL:
     # Total shared
     with open(results_file, "a") as f:
         f.write(f"\tTotal shared\t{stats_shared_count}\n")    
-
-    # Update active requests
+    
+    #########################################################
+    ############# Update active requests buffer #############
+    #########################################################
     print(f"{Fore.YELLOW}Updating the active requests list...{Style.RESET_ALL}")
 
     # Clear the active requests list
+    active_num = len(active_requests)
     active_requests.clear()
 
     # Identify boarded requests
@@ -232,9 +243,12 @@ while current_time < glo.FINAL_TIME - glo.INTERVAL:
         r.assigned = True
 
     print(f"{Fore.GREEN}Current request buffer is updated!")
+    print(f"Number of assigned passengers:{len(final_assigned_requests)}/{active_num}")
     print(f"Done with iteration{Style.RESET_ALL}")
 
-# Final statistics and summary
+#########################################################
+############# Final statistics and summary #############
+#########################################################
 with open(results_file, "a") as results_file:
     results_file.write("FINAL SUMMARY\n")
 
