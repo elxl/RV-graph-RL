@@ -132,7 +132,8 @@ def make_rrgraph(rr_data):
                 compatible_requests.append((request2,path[0]))
         # Kepp the top k links
         compatible_requests.sort(key=lambda req: detour_factor(request1, req[0], network))
-        compatible_requests = compatible_requests[:glo.PRUNING_RR_K]
+        if glo.PRUNING_RR_K and len(compatible_requests) > glo.PRUNING_RR_K:
+            compatible_requests = compatible_requests[:glo.PRUNING_RR_K]
         for request2, cost in compatible_requests:
             with lock:
                 rr_graph.add_node(f'r{request2.id}', request=request2, label='r')  # Add request node with label "r"

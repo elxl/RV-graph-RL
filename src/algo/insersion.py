@@ -283,7 +283,8 @@ def memory(vehicle, network, current_time: int) -> Tuple[int, List[NodeStop]]:
     for i in range(1, len(meta_nodes)):
         meta_nodes[i - 1].unlocks = [meta_nodes[i]]
 
-    optimal = recursive_search(vehicle.node, vehicle.capacity - len(vehicle.passengers), initially_available, network, current_time, -1, Action.NO_ACTION)
+    call_time = current_time + vehicle.offset
+    optimal = recursive_search(vehicle.node, vehicle.capacity - len(vehicle.passengers), initially_available, network, call_time, -1, Action.NO_ACTION)
     return format_path(optimal, current_time)
 
 def travel(vehicle, requests: List['Request'], network, current_time: int, trigger='STANDARD') -> Tuple[int, List[NodeStop]]:

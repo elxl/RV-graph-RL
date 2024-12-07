@@ -65,7 +65,7 @@ print(f"{Fore.WHITE}Setting up network{Style.RESET_ALL}")
 config = {
     'DATAROOT':glo.DATAROOT,
     'TIMEFILE':glo.TIMEFILE,
-    'DISFILE':glo.DISTFILE,
+    'DISTFILE':glo.DISTFILE,
     'EDGECOST_FILE':glo.EDGECOST_FILE,
     'DWELL_PICKUP':glo.DWELL_PICKUP,
     'DWELL_ALIGHT':glo.DWELL_ALIGHT
@@ -161,7 +161,7 @@ while current_time < glo.FINAL_TIME - glo.INTERVAL:
             stats_shared_count += int(r.shared)
 
     with open(results_file, "a") as f:
-        f.write(f"Time stamp: {encode_time(current_time)} \n")
+        f.write(f"Time stamp: {encode_time(current_time)} \t System time {datetime.datetime.now().time()}\n")
 
     # Service Rate
     if stats_entry_count > 0:
@@ -249,8 +249,8 @@ while current_time < glo.FINAL_TIME - glo.INTERVAL:
 #########################################################
 ############# Final statistics and summary #############
 #########################################################
-with open(results_file, "a") as results_file:
-    results_file.write("FINAL SUMMARY\n")
+f = open(results_file, "a")
+f.write("FINAL SUMMARY\n")
 
 # Final statistics
 final_count = stats_pickup_count
@@ -264,9 +264,9 @@ for r in active_requests:
             final_count += 1
 
 service_rate = 100 * final_count / stats_entry_count if stats_entry_count > 0 else 0.0
-results_file.write(f"\tService Rate\t{service_rate:.2f}\t%\n")
-results_file.write(f"\tServed\t{final_count}\n")
-results_file.write(f"\tError Count\t{errors}\n")
+f.write(f"\tService Rate\t{service_rate:.2f}\t%\n")
+f.write(f"\tServed\t{final_count}\n")
+f.write(f"\tError Count\t{errors}\n")
 
 # Calculate passenger time
 passenger_time = stats_total_in_vehicle_time
@@ -279,13 +279,14 @@ for v in vehicles:
 mean_passengers = (passenger_time /
                     ((current_time - glo.INITIAL_TIME) * len(vehicles))
                     if (current_time != glo.INITIAL_TIME) and vehicles else 0.0)
-results_file.write(f"\tMean Passengers\t{mean_passengers:.2f}\n")
+f.write(f"\tMean Passengers\t{mean_passengers:.2f}\n")
 
 # Vehicle state statistics
 total_idle = sum(v.get_total_idle(current_time) for v in vehicles)
 total_enroute = sum(v.get_total_enroute(current_time) for v in vehicles)
 total_inuse = sum(v.get_total_inuse(current_time) for v in vehicles)
 
-results_file.write(f"\tTotal Idle\t{total_idle}\n")
-results_file.write(f"\tTotal En Route\t{total_enroute}\n")
-results_file.write(f"\tTotal Inuse\t{total_inuse}\n")
+f.write(f"\tTotal Idle\t{total_idle}\n")
+f.write(f"\tTotal En Route\t{total_enroute}\n")
+f.write(f"\tTotal Inuse\t{total_inuse}\n")
+f.close()

@@ -2,8 +2,8 @@
 INTERVAL = 60 # Time interval for simulation
 
 # RV generation
-PRUNING_RV_K = 30 # Maximum number of rv edges for each request. Set 0 to indicate no pruning.
-PRUNING_RR_K = 10 # Maximum number of rr edges for each request. Rank by detour factor.
+PRUNING_RV_K = 0 # Maximum number of rv edges for each request. Set 0 to indicate no pruning.
+PRUNING_RR_K = 0 # Maximum number of rr edges for each request. Rank by detour factor.
 
 # RTV generation
 RTV_TIMELIMIT = 0 # Time limit for generating RTV graph. Set 0 to indicate no limit.
@@ -23,7 +23,7 @@ MAX_WAITING = 300 # Maximum waiting time before pickup
 CTSP = "FIX_ONBOARD"
 CARSIZE = 4
 INITIAL_TIME = 0
-FINAL_TIME = 3600
+FINAL_TIME = 300
 VEHICLE_LIMIT = 1000
 ALPHA=0.5
 
@@ -44,8 +44,8 @@ DATAROOT = './data'
 TIMEFILE = 'map/times.csv'
 DISTFILE = 'map/times.csv'
 EDGECOST_FILE = 'map/edges.csv'
-REQUEST_DATA_FILE = "requests/requests.csv"
-VEHICLE_DATA_FILE = "vehicles/vehicles.csv"
+REQUEST_DATA_FILE = "requests/requests_small.csv"
+VEHICLE_DATA_FILE = "vehicles/vehicles_small.csv"
 
 # Mapping string values to the corresponding algorithm, objective, or ctsp values
 algorithm_index = {

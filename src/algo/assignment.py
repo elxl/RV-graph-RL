@@ -96,7 +96,7 @@ def ilp_assignment(trip_list, requests, time_param):
     else:
         model.Params.TimeLimit = 60
         model.Params.MIPGap = 1e-8
-        model.Params.MIPGapAbs = 0.0
+        model.Params.MIPGapAbs = 5
         # model.Params.BestObjStop = GRB.INFINITY
 
     # Solve the model
