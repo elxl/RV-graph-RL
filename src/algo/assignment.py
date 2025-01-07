@@ -88,15 +88,15 @@ def ilp_assignment(trip_list, requests, time_param):
 
     # Optional: Set Gurobi parameters
     quick = True  # Adjust as needed
-    if quick:
+    if not quick:
         model.Params.TimeLimit = 60  # Time limit in seconds
-        model.Params.MIPGap = 1e-4
-        model.Params.MIPGapAbs = 0.0
+        model.Params.MIPGap = 1e-8
+        # model.Params.MIPGapAbs = 0.0
         # model.Params.BestObjStop = GRB.INFINITY
     else:
         model.Params.TimeLimit = 60
-        model.Params.MIPGap = 1e-8
-        model.Params.MIPGapAbs = 5
+        model.Params.MIPGap = 0.05
+        # model.Params.MIPGapAbs = 5
         # model.Params.BestObjStop = GRB.INFINITY
 
     # Solve the model
