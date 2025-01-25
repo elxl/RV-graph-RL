@@ -1,13 +1,20 @@
 import time
+import copy
 import threading
 import networkx as nx
 import random
+import torch
 from concurrent.futures import ThreadPoolExecutor
 from src.algo.insersion import travel_timed
 from src.env.struct.Trip import Trip
+from src.utils.pytorch_util import process_trip_lists
+from src.utils.pytorch_util import add_feature_initialization
+from src.net.s2v_subtour import Struc2Vec
+from torch_geometric.data import Batch
 import src.utils.global_var as glo
 
 mtx = threading.Lock()
+thread_local = threading.local()
 
 def previoustrip(vehicle, network, current_time):
     """
@@ -98,13 +105,29 @@ def prepare_input(clique):
     #TODO
     return clique
 
-def make_rtvgraph(wrap_data, model=None):
+def get_model():
+    """Load the model for feasibility prediction.
+    """
+    if not hasattr(thread_local, "model"):
+        model = Struc2Vec(
+            p_dim=16,
+            nfeatures_vehicle=2,
+            nfeatures_pickup=2,
+            nfeatures_dropoff=2,
+            nfeatures_edge=2,
+            r=4
+        )
+        checkpoint = torch.load(glo.MODEL_PATH, map_location='cpu')
+        model.load_state_dict(checkpoint['model_state_dict'])
+        thread_local.model = model
+        thread_local.model.eval()
+    return thread_local.model
+
+def make_rtvgraph(wrap_data):
     """Generate RTV grah incrementally.
 
     Args:
         wrap_data (dict): dictionary containing rv graph and vehicles
-        model (PyTorch.nn): feasiblity score predictor. Default None means checking feasibility by routing.
-
     Return:
         Dictionary of feasible trips for each vehicle including both the new and pending requests. Include the previously assigned trips.
     """
@@ -117,8 +140,14 @@ def make_rtvgraph(wrap_data, model=None):
     rr_graph = data['rr_edges']
     rv_graph = data['rv_edges']
     trip_list = data['trip_list']
+    feasible = data['feasible']
+    infeasible = data['infeasible']
     network = data['network']
     vehicles = data['vehicles']
+    model = data['model']
+
+    if model:
+        model = get_model()
 
     for i in range(start, end):
         start_time = time.time()
@@ -198,30 +227,36 @@ def make_rtvgraph(wrap_data, model=None):
                         continue
 
                     # Check route feasibility
-                    if model is not None:
-                        request_ids = [f'r{r.id}' for r in combined_requests]
-                        clique1 = rv_graph.subgraph([f'v{vehicle.id}']+request_ids)
-                        clique2 = rr_graph.subgraph(request_ids)
-                        clique = nx.compose(clique1,clique2)
-                        nn_input = prepare_input(clique)
-                        feasibility = model.predict(nn_input)
+                    if model:
+                        # Process clique into nn input
+                        requests = list(combined_requests)
+                        data_point = process_trip_lists(current_time, [vehicle] + requests, network)
+                        data_point = add_feature_initialization(data_point, 16)
+                        batch = Batch.from_data_list([data_point])
+                        with torch.no_grad():
+                            feasibility = model(batch).squeeze().item()
                         # TODO: more spohisticated sampling
-                        if random.random()>feasibility:
+                        # if random.random()>feasibility:
+                        #     continue
+                        if feasibility < 0.5:
                             continue
 
                     # Calculate route and delay
                     path_cost, path_order = travel_timed(
                         vehicle, list(combined_requests), network, current_time, start_time, glo.RTV_TIMELIMIT, trigger='STANDARD'
                     )
-                    if path_cost < 0:
-                        continue
-                    else:
-                        # Add the new trip
-                        if glo.CTSP_OBJECTIVE == "CTSP_DELAY":
-                            path_cost = delay_all(vehicle,path_order,network,current_time)
-                        trip = Trip(cost=path_cost, order_record=path_order, requests=list(combined_requests))
-                        new_round.append(trip)
-                        existing_trips.add(frozenset(combined_requests))
+                    with mtx:
+                        if path_cost < 0:
+                            infeasible.append(copy.deepcopy([vehicle])+list(combined_requests))
+                            continue
+                        else:
+                            feasible.append(copy.deepcopy([vehicle])+list(combined_requests))
+                            # Add the new trip
+                            if glo.CTSP_OBJECTIVE == "CTSP_DELAY":
+                                path_cost = delay_all(vehicle,path_order,network,current_time)
+                            trip = Trip(cost=path_cost, order_record=path_order, requests=list(combined_requests))
+                            new_round.append(trip)
+                            existing_trips.add(frozenset(combined_requests))
             rounds.append(new_round)
 
         # Compile potential trip list
@@ -265,11 +300,13 @@ def all_subsets_exist(requests, previous_round):
             return False
     return True
 
-def build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, threads=1):
+def build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model, threads=1):
     """
     Build the RTV graph by sorting vehicles and running make_rtvgraph in parallel.
     """
     trip_list = {}  # Dictionary to store possible trips per vehicle
+    feasible = [] # List of feasible trips
+    infeasible = [] # List of infeasible trips
 
     # Sort the vehicles based on custom criteria
     # sorted_vs = sorted(
@@ -291,8 +328,11 @@ def build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, threads
         'rr_edges': rr_edges,
         'rv_edges': rv_edges,
         'trip_list': trip_list,
+        'feasible': feasible,
+        'infeasible': infeasible,
         'network': network,
-        'vehicles': vehicles
+        'vehicles': vehicles,
+        'model': model
     }
 
     # Use ThreadPoolExecutor for parallel execution
@@ -314,4 +354,4 @@ def build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, threads
         for future in futures:
             future.result()
 
-    return trip_list
+    return trip_list, feasible, infeasible

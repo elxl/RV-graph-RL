@@ -1,4 +1,4 @@
-import os, datetime
+import os, datetime, pickle
 from colorama import init as colorama_init
 from colorama import Fore
 from colorama import Style
@@ -15,7 +15,7 @@ print(f"{Fore.WHITE}Starting Ridepool Simulator!!!{Style.RESET_ALL}!")
 args = initialize()
 
 # Head output with a description of the run
-results_file = os.path.join(glo.RESULTS_DIRECTORY, "results.log")
+results_file = os.path.join(glo.RESULTS_DIRECTORY, glo.LOG_FILE)
 with open(results_file, "w") as results:
     # Write basic configuration details
     results.write(f"DATAROOT {glo.DATAROOT}\n")
@@ -92,6 +92,13 @@ stats_shared_count = 0
 storage_service_count = 0
 storage_request_count = 0
 
+# Collect data for training
+feasibility = {
+    'feasible': {},
+    'infeasible': {},
+    'network': network
+}
+
 print(f"{Fore.GREEN}Done with all set up!{Style.RESET_ALL}")
 print(f"{Fore.CYAN}Starting iterations!{Style.RESET_ALL}")
 current_time = glo.INITIAL_TIME - glo.INTERVAL
@@ -117,7 +124,9 @@ while current_time < glo.FINAL_TIME - glo.INTERVAL:
     ########### Run trip assignement ########
     #########################################
     print(f"{Fore.YELLOW}Starting trip assignement...{Style.RESET_ALL}")
-    assigned_trips = ilp_assignement_full(active_vehicles,active_requests,current_time,network,args.threads)
+    assigned_trips, feasible, infeasible = ilp_assignement_full(active_vehicles,active_requests,current_time,network,args.ML,args.THREADS)
+    feasibility['feasible'][current_time] = feasible
+    feasibility['infeasible'][current_time] = infeasible
 
     # Remove blank trips
     blank_trips = {
@@ -140,7 +149,7 @@ while current_time < glo.FINAL_TIME - glo.INTERVAL:
     ############## Move vehicles ##############
     ###########################################
     print(f"{Fore.YELLOW}Vehicle moving to assigned passengers...{Style.RESET_ALL}")
-    simulate_vehicles(vehicles,assigned_trips,network,current_time,args.threads)
+    simulate_vehicles(vehicles,assigned_trips,network,current_time,args.THREADS)
     print(f"{Fore.GREEN}Vehicle movement completed!{Style.RESET_ALL}")
 
     ##########################################################
@@ -290,3 +299,7 @@ f.write(f"\tTotal Idle\t{total_idle}\n")
 f.write(f"\tTotal En Route\t{total_enroute}\n")
 f.write(f"\tTotal Inuse\t{total_inuse}\n")
 f.close()
+
+# Save feasibility data
+# with open(os.path.join(glo.DATAROOT, "training/feasibility_0-1_full.pkl"), "wb") as f:
+#     pickle.dump(feasibility, f)

@@ -14,35 +14,66 @@ import argparse
 from typing import List
 import networkx as nx
 from src.net.s2v import MLP
-from src.utils.pytorch_util import evaluate_model_subgraph
-from src.utils.helper import DataPoint
+from src.utils.pytorch_util import evaluate_model_mlp
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 
 
-epochs = 20
+epochs = 1000
+lr = 1e-3
 threshold = 0.5
+train_split = 0.8
+batch_size = 64
+WANDB = 1
+VERBOSE = 0
+size = 4
+num_features = size + size*(size-1)/2
 class SubgraphDataset(Dataset):
     def __init__(self, data_points):
         self.samples = []
         
         for data_point in data_points:
+            # Make balanced dataset
+            feasible_num = 0
+            infeasible_num = 0
+            for nodes in data_point.feasible:
+                if len(nodes) == size:
+                    feasible_num += 1
+            for nodes in data_point.infeasible:
+                if len(nodes) == size:
+                    infeasible_num += 1        
+            num = min(feasible_num,infeasible_num)
+            count = 0
             # Process feasible subgraphs
             for nodes in data_point.feasible:
-                if len(nodes) == 4:
-                    if data_point.graph.subgraph(nodes).number_of_edges() + len(nodes)!=10:
-                        break
+                if len(nodes) == size:
+                    if data_point.graph.subgraph(nodes).number_of_edges() + len(nodes)!=num_features:
+                        raise ValueError("Feasible trip not connected!")
                     self.samples.append((self.flatten_subgraph(data_point.graph, nodes), 1))
+                    count += 1
+                    if count >= num:
+                        break
             
+            count = 0
             # Process infeasible subgraphs
             for nodes in data_point.infeasible:
-                if len(nodes) == 4:
+                if len(nodes) == size:
+                    if data_point.graph.subgraph(nodes).number_of_edges() + len(nodes)!=num_features:
+                        raise ValueError("Infeasible trip not connected!")
                     self.samples.append((self.flatten_subgraph(data_point.graph, nodes), 0))
+                    count += 1
+                    if count >= num:
+                        break
     
     def flatten_subgraph(self, graph, nodes):
         """Flatten node and edge features of a subgraph."""
         subgraph = graph.subgraph(nodes)
-        sorted_nodes = sorted(subgraph.nodes, key=lambda n: (str(n).startswith('r'), n))
+
+        # Order nodes
+        v_node = [n for n in subgraph.nodes if n.startswith('v')][0]
+        rv_weights = {node:subgraph.get_edge_data(v_node,node)['weight'] for node in subgraph.nodes if node.startswith('r')}
+        rv_weights[v_node] = 0
+        sorted_nodes = sorted(subgraph.nodes, key=lambda n: (n.startswith('v'), rv_weights[n]))
 
         # Flatten node features
         node_features = [
@@ -62,7 +93,7 @@ class SubgraphDataset(Dataset):
         # Concatenate and return flattened feature vector
         flattened_features = torch.tensor(node_features + edge_features, dtype=torch.float)
 
-        if flattened_features.shape[0]!=10:
+        if flattened_features.shape[0]!= num_features:
             print(flattened_features.shape)
 
         return flattened_features
@@ -74,25 +105,44 @@ class SubgraphDataset(Dataset):
         features, label = self.samples[idx]
         return features, torch.tensor(label, dtype=torch.float32)
     
-filepath = './data/imitation/data_points_connected_clean.pkl'
+filepath = './data/imitation/data_points_connected_delay.pkl'
 with open(filepath, 'rb') as f:
     data_points = pickle.load(f)
 print(f"Data points loaded from {filepath}")
-dataset = SubgraphDataset(data_points)
-dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+dataset = SubgraphDataset(data_points[10:20])
+positive = sum([1 for each in dataset if each[1] == 0])
+print(f"Positive/negative ratio:{positive/(len(dataset)-positive):.2f}")
+print(f"Dataset size: {len(dataset)}")
+train_data, test_data = train_test_split(dataset, test_size=1-train_split, random_state=42)
+
+train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True,num_workers=0)
+test_loader = DataLoader(test_data, batch_size=batch_size, shuffle=False,num_workers=0)
 
 print("Set up training model ...")
-model = MLP(input_size=10, 
-            hidden_size=64,
-            output_size=1)
-loss_fn = nn.BCELoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = MLP(input_size=int(num_features),
+            hidden_size=64,
+            output_size=1).to(device)
+loss_fn = nn.BCELoss()
+optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
 
 precision = Precision(task="binary")  # Micro for binary
 recall = Recall(task="binary")
 
 print("Training start...")
+if WANDB:
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="RV-imitation",
+
+        # track hyperparameters and run metadata
+        config={
+        "learning_rate": lr,
+        "architecture": "MLP",
+        "dataset": "size 3",
+        "batch_size": batch_size,
+        }
+    )
 
 for epoch in range(epochs):
     model.train()  # Set the model to training mode
@@ -100,17 +150,18 @@ for epoch in range(epochs):
     all_preds = []
     all_labels = []
     
-    for batch in dataloader:
-        # batch = batch.to(device)
+    for batch in train_loader:
+        features = batch[0].to(device)
+        labels = batch[1].to(device)
         optimizer.zero_grad()
         
         # Forward pass
-        outputs = model(batch[0]).squeeze()
+        outputs = model(features).squeeze()
 
         # print("Logits:", F.sigmoid(sampled_outputs).squeeze()[:10])
 
         # Compute loss
-        loss = loss_fn(outputs, batch[1])
+        loss = loss_fn(outputs, labels)
 
         # Backward pass and optimizer step
         loss.backward()
@@ -135,16 +186,22 @@ for epoch in range(epochs):
 
         preds = (outputs > threshold).float()  # Convert logits to binary predictions
         all_preds.extend(preds.cpu().numpy())
-        all_labels.extend(batch[1].cpu().numpy())
+        all_labels.extend(labels.cpu().numpy())
 
-        precision.update(preds, batch[1])
-        recall.update(preds, batch[1])
+        precision.update(preds, labels)
+        recall.update(preds, labels)
 
     # Calculate epoch accuracy
     train_accuracy = accuracy_score(all_labels, all_preds)
+    test_loss, test_accuracy = evaluate_model_mlp(model, test_loader, loss_fn, threshold, device)
 
+    if WANDB:
+        wandb.log({"Train Loss": total_loss/len(train_loader), "Train Accuracy": train_accuracy,
+            "Test Loss": test_loss, "Test Accuracy": test_accuracy,
+            "Precision": precision.compute(), "Recall": recall.compute()})
 
-    print(f"Epoch [{epoch+1}/{epochs}], ", f"Train Loss: {total_loss/len(dataloader):.4f}, Train Accuracy: {train_accuracy:.4f}",
-        f"Precision: {precision.compute():.4f}", f"Recall: {recall.compute():.4f}")
+    if VERBOSE:
+        print(f"Epoch [{epoch+1}/{epochs}], ", f"Train Loss: {total_loss/len(train_loader):.4f}, Train Accuracy: {train_accuracy:.4f}",
+            f"Precision: {precision.compute():.4f}", f"Recall: {recall.compute():.4f}", f"Test Loss: {test_loss}", f"Test Accuracy: {test_accuracy}")
     precision.reset()
     recall.reset()

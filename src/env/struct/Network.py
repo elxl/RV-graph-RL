@@ -8,6 +8,8 @@ import math
 from collections import deque, defaultdict, namedtuple
 
 Neighbor = namedtuple("Neighbor", ["target","weight"])
+def return_none():
+    return None
 
 class Network:
     def __init__(self, config):
@@ -25,7 +27,7 @@ class Network:
             self.adjacency_list = self.load_adjacency_list(os.path.join(config['DATAROOT'], config['EDGECOST_FILE']))
         self.dwell_pickup = config['DWELL_PICKUP']
         self.dwell_alight = config['DWELL_ALIGHT']
-        self.shortest_paths = defaultdict(lambda: None) # Store shortest path to avoid recomputation
+        self.shortest_paths = defaultdict(return_none) # Store shortest path to avoid recomputation
 
     def load_matrix(self, file_path):
         """

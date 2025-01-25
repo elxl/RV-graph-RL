@@ -17,6 +17,8 @@ from src.utils.pytorch_util import evaluate_model_subgraph
 from src.utils.helper import DataPoint
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
+import multiprocessing
+# multiprocessing.set_start_method('fork', force=True)
 
 
 parser = argparse.ArgumentParser(description="Imitation learning.")
@@ -148,12 +150,21 @@ def preprocess_data(data_points: List[DataPoint]):
     
     for data in data_points:
         #Process feasible subgraphs with label 1
-        num_sample = min(len(data.feasible),len(data.infeasible))
+        # num_sample = min(len(data.feasible),len(data.infeasible))
+        feasible_num = 0
+        infeasible_num = 0
+        for nodes in data.feasible:
+            if len(nodes) == 3:
+                feasible_num += 1
+        for nodes in data.infeasible:
+            if len(nodes) == 3:
+                infeasible_num += 1        
+        num = min(feasible_num,infeasible_num)
         batch_int = (num_sample//args.BATCH)
         num_sample = batch_int * args.BATCH
         num = 0
         for nodes in data.feasible:
-            if len(nodes)>=3:
+            if len(nodes)==3:
                 subgraph_data = extract_subgraph(data.graph, nodes)
                 subgraph_data.y = torch.tensor([1], dtype=torch.float)
                 dataset.append(subgraph_data)
@@ -164,7 +175,7 @@ def preprocess_data(data_points: List[DataPoint]):
         # Process infeasible subgraphs with label 0
         num=0
         for nodes in data.infeasible:
-            if len(nodes)>=3:
+            if len(nodes)==3:
                 subgraph_data = extract_subgraph(data.graph, nodes)
                 subgraph_data.y = torch.tensor([0], dtype=torch.float)
                 dataset.append(subgraph_data)
@@ -182,7 +193,7 @@ if args.DATA.endswith("pkl"):
     data_points = load_data_points(args.DATA)
 
     # Use the DataLoader for batch processing
-    dataset = preprocess_data(data_points[10:20])
+    dataset = preprocess_data([data_points[10]])
     # filepath = args.DATA.split(".pkl")[0] + '.pt'
     # torch.save(dataset, filepath)
     # print(f"Data processed. Processed file saved to {filepath}")
@@ -293,8 +304,11 @@ for epoch in range(epochs):
     # Calculate epoch accuracy
     train_accuracy = accuracy_score(all_labels, all_preds)
 
-    # Evaluate on test set after each epochloss_fn, 
-    test_loss, test_accuracy = evaluate_model_subgraph(model, test_loader, loss_fn, args.THRESHOLD, device)
+    # Evaluate on test set after each epoch
+    with torch.no_grad():
+        test_loss, test_accuracy = evaluate_model_subgraph(model, test_loader, loss_fn, args.THRESHOLD, device)
+
+    torch.cuda.empty_cache()
 
     if args.WANDB:
         wandb.log({"Train Loss": total_loss/len(train_loader), "Train Accuracy": train_accuracy,

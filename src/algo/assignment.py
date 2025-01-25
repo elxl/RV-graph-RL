@@ -137,7 +137,7 @@ def ilp_assignment(trip_list, requests, time_param):
 
     return assigned_trips
 
-def ilp_assignement_full(vehicles, requests, current_time, network,threads=1):
+def ilp_assignement_full(vehicles, requests, current_time, network, model, threads=1):
     """ Performs all steps in the algorithm.
 
     Args:
@@ -154,7 +154,7 @@ def ilp_assignement_full(vehicles, requests, current_time, network,threads=1):
     rv_edges, rr_edges = rvgenerator(vehicles, requests, current_time, network, threads)
 
     print("Building RTV graph")
-    trip_list = build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network)
+    trip_list, feasible, infeasible = build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model, threads=threads)
 
     # Count total number of trips
     total_trips = sum(len(trips) for trips in trip_list.values())
@@ -199,4 +199,4 @@ def ilp_assignement_full(vehicles, requests, current_time, network,threads=1):
     # Perform the ILP assignment
     assigned_trips = ilp_assignment(trip_list, requests, current_time)
 
-    return assigned_trips
+    return assigned_trips, feasible, infeasible

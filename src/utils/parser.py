@@ -32,6 +32,7 @@ def initialize():
     parser.add_argument('--RESULTS_DIRECTORY', type=str, default=glo.RESULTS_DIRECTORY, help="Directory for storing results.")
     parser.add_argument('--TIMEFILE', type=str, default=glo.TIMEFILE, help="File for time data.")
     parser.add_argument('--EDGECOST_FILE', type=str, default=glo.EDGECOST_FILE, help="File for edge cost data.")
+    parser.add_argument('--LOG_FILE', type=str, default=glo.LOG_FILE, help="File for result log.")
     parser.add_argument('--VEHICLE_LIMIT', type=int, default=glo.VEHICLE_LIMIT, help="Limit on the number of vehicles.")
     parser.add_argument('--MAX_WAITING', type=int, default=glo.MAX_WAITING, help="Maximum waiting time.")
     parser.add_argument('--MAX_DETOUR', type=int, default=glo.MAX_DETOUR, help="Maximum detour time.")
@@ -54,9 +55,8 @@ def initialize():
     parser.add_argument('--DWELL_ALIGHT', type=int, default=glo.DWELL_ALIGHT, help="Dwell time for alighting.")
     parser.add_argument('--PRUNING_RR_K', type=int, default=glo.PRUNING_RR_K, help="Pruning RR parameter.")
     parser.add_argument('--PRUNING_RV_K', type=int, default=glo.PRUNING_RV_K, help="Pruning RV parameter.")
-    parser.add_argument('--threads', type=int, default=1, help="Number of threads.")
-
-    #TODO: add neural network arguments
+    parser.add_argument('--ML', type=int, default=0, help="Whether to use feasibility prediction model.")
+    parser.add_argument('--THREADS', type=int, default=1, help="Number of threads.")
 
     # Parse the arguments
     args = parser.parse_args()
@@ -66,6 +66,7 @@ def initialize():
     glo.RESULTS_DIRECTORY = process_string(args.RESULTS_DIRECTORY)
     glo.TIMEFILE = process_string(args.TIMEFILE)
     glo.EDGECOST_FILE = process_string(args.EDGECOST_FILE)
+    glo.LOG_FILE = process_string(args.LOG_FILE)
     glo.VEHICLE_LIMIT = args.VEHICLE_LIMIT
     glo.MAX_WAITING = args.MAX_WAITING
     glo.MAX_DETOUR = args.MAX_DETOUR

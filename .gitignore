@@ -1,6 +1,7 @@
 __pycache__/
 wandb/
 results/
+weights/
 *.ipynb
 data/
 .vscode/

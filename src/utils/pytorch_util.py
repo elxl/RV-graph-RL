@@ -6,7 +6,174 @@ import networkx as nx
 import scipy.sparse
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score
+from torch_geometric.data import Data
+from collections import defaultdict
 
+def prepare_graph(timestep, vehicle, requests, network, directed=False):
+    """Preapre a graph data point for a single trip
+
+    Args:
+        timestep (int)
+        vehicle (Vehicle)
+        requests (List[Request])
+        network (network)
+        directed (bool)
+
+    Returns:
+        torch_geometric.data.Data
+    """
+    node_feats_vehicle = []
+    node_feats_pickup = []
+    node_feats_dropoff = []
+    deadlines = [] # deadline for visting node
+    edge_index = []
+    edge_feats = []
+    node_types = []
+    node_number = [] # map from index to node
+    node_idx = 0
+
+    # Vehicle node
+    node_feats_vehicle.append([vehicle.capacity, len(vehicle.passengers)])
+    node_idx += 1
+    node_types.append(0) # 0:vehicle, 1:pickup, 2:dropoff
+    node_number.append(vehicle.node)
+    deadlines.append(np.inf)
+
+    # New request origin nodes
+    for request in requests:
+        origin_idx = node_idx
+
+        # node_feats_pickup.append([(request.latest_boarding - timestep)/60, 1, network.get_time(vehicle.node, request.origin)/60])
+        deadline_residual = (request.latest_boarding - timestep)/60
+        node_feats_pickup.append([deadline_residual, 1])
+        node_idx += 1
+        node_types.append(1)
+        node_number.append(request.origin)
+        deadlines.append(deadline_residual)
+
+        # Connect vehicle node to origin node
+        edge_index.append([0, origin_idx])
+        od_travel = network.get_time(vehicle.node, request.origin)/60
+        edge_feats.append([od_travel, deadline_residual-od_travel])
+        if not directed:
+            edge_index.append([origin_idx, 0])
+            od_travel = network.get_time(request.origin, vehicle.node)/60
+            edge_feats.append([od_travel, deadlines[0]-od_travel])
+        
+        # Connect to other origin nodes
+        for node in range(1,node_idx-1):
+            edge_index.append([node, origin_idx])
+            edge_index.append([origin_idx, node])
+            od_travel_1 = network.get_time(node_number[node], request.origin)/60
+            od_travel_2 = network.get_time(request.origin, node_number[node])/60
+            edge_feats.append([od_travel_1, deadline_residual-od_travel_1])
+            edge_feats.append([od_travel_2, deadlines[node]-od_travel_2])
+
+    # New request destination nodes
+    for request in requests:
+        destination_idx = node_idx
+
+        deadline_residual = (request.latest_alighting - timestep)/60
+        node_feats_dropoff.append([deadline_residual, -1])
+        node_idx += 1
+        node_types.append(2)
+        node_number.append(request.destination)
+        deadlines.append(deadline_residual)
+
+        # Connect to other nodes (except vehicle node)
+        for node in range(1,node_idx-1):
+            edge_index.append([node, destination_idx])
+            od_travel_1 = network.get_time(node_number[node], request.destination)/60
+            edge_feats.append([od_travel_1, deadline_residual-od_travel_1])
+            if directed and node_number[node] == request.origin:
+                continue
+            edge_index.append([destination_idx, node])
+            od_travel_2 = network.get_time(request.destination, node_number[node])/60
+            edge_feats.append([od_travel_2, deadlines[node]-od_travel_2])
+
+    # Onboard destination node
+    for request in vehicle.passengers:
+        destination_idx = node_idx
+
+        deadline_residual = (request.latest_alighting - timestep)/60
+        node_feats_dropoff.append([deadline_residual, -1])
+        node_idx += 1
+        node_types.append(2)
+        node_number.append(request.destination)
+        deadlines.append(deadline_residual)
+
+        # Connect vehicle node to destination node
+        edge_index.append([0, destination_idx])
+        od_travel = network.get_time(vehicle.node, request.destination)/60
+        edge_feats.append([od_travel, deadline_residual-od_travel])
+        if not directed:
+            edge_index.append([destination_idx, 0])
+            od_travel = network.get_time(request.destination, vehicle.node)/60
+            edge_feats.append([od_travel, deadlines[0]-od_travel])
+
+        # Connect to other nodes (except vehicle node)
+        for node in range(1,node_idx-1):
+            edge_index.append([node, destination_idx])
+            edge_index.append([destination_idx, node])
+            od_travel_1 = network.get_time(node_number[node], request.destination)/60
+            od_travel_2 = network.get_time(request.destination, node_number[node])/60
+            edge_feats.append([od_travel_1, deadline_residual-od_travel_1])
+            edge_feats.append([od_travel_2, deadlines[node]-od_travel_2])
+
+    # Convert to tensor
+    node_feats_vehicle = torch.tensor(node_feats_vehicle, dtype=torch.float)
+    node_feats_pickup = torch.tensor(node_feats_pickup, dtype=torch.float)
+    node_feats_dropoff = torch.tensor(node_feats_dropoff, dtype=torch.float)
+    edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
+    edge_feats = torch.tensor(edge_feats, dtype=torch.float)
+    node_types = torch.tensor(node_types, dtype=torch.long)
+    node_number = torch.tensor(node_number, dtype=torch.long)
+
+    graph = Data(x_vehicle=node_feats_vehicle, 
+                 x_pickup=node_feats_pickup,
+                 x_dropoff=node_feats_dropoff,
+                 edge_index=edge_index, 
+                 edge_attr=edge_feats, 
+                 node_types=node_types,
+                 node_number=node_number)
+    return graph
+
+def process_trip_lists(timestep, trip, network, label=1, directed=True):
+    """Process a list of trip lists into a list of graph data points
+
+    Args:
+        timestep (int)
+        trip (List[Vehicle, List[Request]])
+        network (Network)
+        label (int)
+        directed (bool)
+
+    Returns:
+        List[torch_geometric.data.Data]
+    """
+    vehicle, requests = trip[0], trip[1:]
+    graph = prepare_graph(timestep, vehicle, requests, network, directed)
+    graph.y = torch.tensor([label], dtype=torch.long)
+    return graph
+
+def add_feature_initialization(data_point, p_dim):
+    """Add initial features for each data point
+
+    Args:
+        data_point (List[torch_geometric.data.Data])
+        p_dim (int)
+
+    Returns:
+        List[torch_geometric.data.Data]
+    """
+    num_nodes = data_point.x_vehicle.size(0) + data_point.x_pickup.size(0) + data_point.x_dropoff.size(0)
+
+    # Initialize a zero vector for each node
+    node_mu = torch.zeros(num_nodes, p_dim)
+
+    # Add the new attribute to the data point
+    data_point.node_mu = node_mu
+    return data_point
 
 def weights_init(m):
     """Initialize neural network
@@ -302,3 +469,52 @@ def evaluate_model_subgraph(model, loader, loss_fn, threshold, device):
     loss = loss_total/len(loader)
     accuracy = accuracy_score(all_labels, all_preds)
     return loss, accuracy
+
+def evaluate_model_mlp(model, loader, loss_fn, threshold, device):
+    model.eval()
+    loss_total = 0
+    all_preds = []
+    all_labels = []
+    with torch.no_grad():
+        for batch in loader:
+            features = batch[0].to(device)
+            labels = batch[1].to(device)
+            outputs = model(features).squeeze()
+            loss_total += loss_fn(outputs, labels)
+
+            preds = (outputs > threshold).float()  # Convert logits to binary predictions
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+    loss = loss_total/len(loader)
+    accuracy = accuracy_score(all_labels, all_preds)
+    return loss, accuracy
+
+def evaluate_model_s2v(model, loader, loss_fn, threshold, device, mislabled=False):
+    model.eval()
+    loss_total = 0
+    total_data_points = 0
+
+    all_preds = []
+    all_labels = []
+    mislabeled_labels = []
+    mislabeled_scores = []
+    with torch.no_grad():
+        for batch in loader:
+            batch = batch.to(device)
+            outputs = model(batch)
+
+            loss_total += loss_fn(outputs, batch.y.view(-1, 1).float()) * batch.y.size(0)
+            total_data_points += batch.y.size(0)
+            preds = (outputs > threshold).float()  # Convert logits to binary predictions
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(batch.y.cpu().numpy())
+
+            if mislabled:
+                for i, pred in enumerate(preds):
+                    if pred.item() != batch.y[i].item():
+                        mislabeled_labels.append(batch.y[i].cpu().item())
+                        mislabeled_scores.append(outputs[i].cpu().item())
+
+    loss = loss_total / total_data_points
+    accuracy = accuracy_score(all_labels, all_preds)
+    return loss, accuracy, mislabeled_labels, mislabeled_scores

@@ -3,11 +3,11 @@ INTERVAL = 60 # Time interval for simulation
 
 # RV generation
 PRUNING_RV_K = 0 # Maximum number of rv edges for each request. Set 0 to indicate no pruning.
-PRUNING_RR_K = 0 # Maximum number of rr edges for each request. Rank by detour factor.
+PRUNING_RR_K = 0 # Maximum number of rr edges for each request. Rank by detour factor. Set 0 to indicate no pruning.
 
 # RTV generation
 RTV_TIMELIMIT = 0 # Time limit for generating RTV graph. Set 0 to indicate no limit.
-MAX_NEW = 8 # Maximum new pickup and dropoff stops
+MAX_NEW = 8 # Maximum new pickup and dropoff stops.
 
 # Trip generation/feasibility check
 LP_LIMITVALUE = 8 # LP_LIMITVALUE/2 is the limit of the number of new requests that is allowed to be assigned to a vehicle at one time
@@ -23,9 +23,12 @@ MAX_WAITING = 300 # Maximum waiting time before pickup
 CTSP = "FIX_ONBOARD"
 CARSIZE = 4
 INITIAL_TIME = 0
-FINAL_TIME = 300
+FINAL_TIME = 3600
 VEHICLE_LIMIT = 1000
 ALPHA=0.5
+
+# Feasiblity check model
+MODEL_PATH = "weights/s2v/s2v_0-1_full_10000_di_edge.pt"
 
 # Assignement problem
 ALGORITHM = 'ILP_FULL'
@@ -46,6 +49,7 @@ DISTFILE = 'map/times.csv'
 EDGECOST_FILE = 'map/edges.csv'
 REQUEST_DATA_FILE = "requests/requests_small.csv"
 VEHICLE_DATA_FILE = "vehicles/vehicles_small.csv"
+LOG_FILE = "results.log"
 
 # Mapping string values to the corresponding algorithm, objective, or ctsp values
 algorithm_index = {

@@ -144,7 +144,7 @@ def recursive_search(initial_location: int, residual_capacity: int, initially_av
             continue
         
         # Check time window constraint
-        if m.node.is_pickup and arrival_time > m.node.r.entry_time + glo.MAX_WAITING:
+        if m.node.is_pickup and arrival_time > m.node.r.latest_boarding:
             continue
         if get_alight_deadline(m.node.r) < arrival_time:
             continue
@@ -379,7 +379,7 @@ def recursive_search_timed(initial_location: int, residual_capacity: int, initia
             continue
         
         # Check time window constraint
-        if m.node.is_pickup and arrival_time > m.node.r.entry_time + glo.MAX_WAITING:
+        if m.node.is_pickup and arrival_time > m.node.r.latest_boarding:
             continue
         if get_alight_deadline(m.node.r) < arrival_time:
             continue
