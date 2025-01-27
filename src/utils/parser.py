@@ -56,6 +56,7 @@ def initialize():
     parser.add_argument('--PRUNING_RR_K', type=int, default=glo.PRUNING_RR_K, help="Pruning RR parameter.")
     parser.add_argument('--PRUNING_RV_K', type=int, default=glo.PRUNING_RV_K, help="Pruning RV parameter.")
     parser.add_argument('--ML', type=int, default=0, help="Whether to use feasibility prediction model.")
+    parser.add_argument('--MODEL_PATH', type=str, default=glo.MODEL_PATH, help="Path to the feasibility prediction model.")
     parser.add_argument('--THREADS', type=int, default=1, help="Number of threads.")
 
     # Parse the arguments
@@ -87,5 +88,6 @@ def initialize():
     glo.DWELL_ALIGHT = args.DWELL_ALIGHT
     glo.PRUNING_RR_K = args.PRUNING_RR_K
     glo.PRUNING_RV_K = args.PRUNING_RV_K
+    glo.MODEL_PATH = args.MODEL_PATH
 
     return args

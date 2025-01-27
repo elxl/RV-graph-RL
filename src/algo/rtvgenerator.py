@@ -12,6 +12,8 @@ from src.utils.pytorch_util import add_feature_initialization
 from src.net.s2v_subtour import Struc2Vec
 from torch_geometric.data import Batch
 import src.utils.global_var as glo
+import onnxruntime as ort
+import numpy as np
 
 mtx = threading.Lock()
 thread_local = threading.local()
@@ -99,30 +101,47 @@ def delay_all(vehicle, node_list, network, current_time):
     # Average delay
     return delay
 
-def prepare_input(clique):
-    """Prepare clique to be input to the prediction model.
-    """
-    #TODO
-    return clique
-
 def get_model():
     """Load the model for feasibility prediction.
     """
     if not hasattr(thread_local, "model"):
-        model = Struc2Vec(
-            p_dim=16,
-            nfeatures_vehicle=2,
-            nfeatures_pickup=2,
-            nfeatures_dropoff=2,
-            nfeatures_edge=2,
-            r=4
-        )
-        checkpoint = torch.load(glo.MODEL_PATH, map_location='cpu')
-        model.load_state_dict(checkpoint['model_state_dict'])
-        thread_local.model = model
-        thread_local.model.eval()
+        # model = Struc2Vec(
+        #     p_dim=16,
+        #     nfeatures_vehicle=2,
+        #     nfeatures_pickup=2,
+        #     nfeatures_dropoff=2,
+        #     nfeatures_edge=2,
+        #     r=4
+        # )
+        # checkpoint = torch.load(glo.MODEL_PATH, map_location='cpu')
+        # model.load_state_dict(checkpoint['model_state_dict'])
+        # thread_local.model = model
+        # thread_local.model.eval()
+        thread_local.model = ort.InferenceSession(glo.MODEL_PATH)
     return thread_local.model
 
+def get_feasibility(current_time, clique, network, model, threshold=0.5):
+    x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types = process_trip_lists(current_time, clique, network, directed=True, evaluation=True)
+    node_num = len(x_vehicle) + len(x_pickup) + len(x_dropoff)
+    node_mu = np.zeros((node_num, 16), dtype=np.float32)
+    batch = np.zeros(node_num, dtype=np.int64)
+    inputs = {
+        "x_vehicle": np.array(x_vehicle, dtype=np.float32),
+        "x_pickup": np.array(x_pickup, dtype=np.float32),
+        "x_dropoff": np.array(x_dropoff, dtype=np.float32),
+        "edge_index": np.array(edge_index, dtype=np.int64).T,
+        "edge_attr": np.array(edge_attr, dtype=np.float32),
+        "node_types": np.array(node_types, dtype=np.int64),
+        "mu": np.array(node_mu),
+        "batch": batch,
+    }
+    with torch.no_grad():
+        feasibility = model.run(None, inputs)
+    if feasibility[0] > threshold:
+        return True
+    else:
+        return False
+    
 def make_rtvgraph(wrap_data):
     """Generate RTV grah incrementally.
 
@@ -230,15 +249,7 @@ def make_rtvgraph(wrap_data):
                     if model:
                         # Process clique into nn input
                         requests = list(combined_requests)
-                        data_point = process_trip_lists(current_time, [vehicle] + requests, network)
-                        data_point = add_feature_initialization(data_point, 16)
-                        batch = Batch.from_data_list([data_point])
-                        with torch.no_grad():
-                            feasibility = model(batch).squeeze().item()
-                        # TODO: more spohisticated sampling
-                        # if random.random()>feasibility:
-                        #     continue
-                        if feasibility < 0.5:
+                        if not get_feasibility(current_time, [vehicle] + requests, network, model):
                             continue
 
                     # Calculate route and delay
@@ -266,7 +277,10 @@ def make_rtvgraph(wrap_data):
                 raise RuntimeError("Negative cost in potential trips!!!")
 
         # Include previous assignment if any and if not already included
-        potential_trips_request_id = [[stop.r.id for stop in trip.order_record] for trip in rounds[len(vehicle.pending_requests)]]
+        if len(vehicle.pending_requests) < len(rounds):
+            potential_trips_request_id = [[stop.r.id for stop in trip.order_record] for trip in rounds[len(vehicle.pending_requests)]]
+        else:
+            potential_trips_request_id = []
         if vehicle.order_record:
             request_id_vehicle = [stop.r.id for stop in vehicle.order_record]
             if request_id_vehicle not in potential_trips_request_id:               

@@ -7,9 +7,8 @@ import scipy.sparse
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score
 from torch_geometric.data import Data
-from collections import defaultdict
 
-def prepare_graph(timestep, vehicle, requests, network, directed=False):
+def prepare_graph(timestep, vehicle, requests, network, directed=False, evaluation=False):
     """Preapre a graph data point for a single trip
 
     Args:
@@ -120,25 +119,28 @@ def prepare_graph(timestep, vehicle, requests, network, directed=False):
             edge_feats.append([od_travel_1, deadline_residual-od_travel_1])
             edge_feats.append([od_travel_2, deadlines[node]-od_travel_2])
 
-    # Convert to tensor
-    node_feats_vehicle = torch.tensor(node_feats_vehicle, dtype=torch.float)
-    node_feats_pickup = torch.tensor(node_feats_pickup, dtype=torch.float)
-    node_feats_dropoff = torch.tensor(node_feats_dropoff, dtype=torch.float)
-    edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
-    edge_feats = torch.tensor(edge_feats, dtype=torch.float)
-    node_types = torch.tensor(node_types, dtype=torch.long)
-    node_number = torch.tensor(node_number, dtype=torch.long)
+    if not evaluation:
+        # Convert to tensor
+        node_feats_vehicle = torch.tensor(node_feats_vehicle, dtype=torch.float)
+        node_feats_pickup = torch.tensor(node_feats_pickup, dtype=torch.float)
+        node_feats_dropoff = torch.tensor(node_feats_dropoff, dtype=torch.float)
+        edge_index = torch.tensor(edge_index, dtype=torch.long).t().contiguous()
+        edge_feats = torch.tensor(edge_feats, dtype=torch.float)
+        node_types = torch.tensor(node_types, dtype=torch.long)
+        node_number = torch.tensor(node_number, dtype=torch.long)
 
-    graph = Data(x_vehicle=node_feats_vehicle, 
-                 x_pickup=node_feats_pickup,
-                 x_dropoff=node_feats_dropoff,
-                 edge_index=edge_index, 
-                 edge_attr=edge_feats, 
-                 node_types=node_types,
-                 node_number=node_number)
-    return graph
+        graph = Data(x_vehicle=node_feats_vehicle, 
+                    x_pickup=node_feats_pickup,
+                    x_dropoff=node_feats_dropoff,
+                    edge_index=edge_index, 
+                    edge_attr=edge_feats, 
+                    node_types=node_types,
+                    node_number=node_number)
+        return graph
+    else:
+        return node_feats_vehicle, node_feats_pickup, node_feats_dropoff, edge_index, edge_feats, node_types
 
-def process_trip_lists(timestep, trip, network, label=1, directed=True):
+def process_trip_lists(timestep, trip, network, label=1, directed=True, evaluation=False):
     """Process a list of trip lists into a list of graph data points
 
     Args:
@@ -152,9 +154,12 @@ def process_trip_lists(timestep, trip, network, label=1, directed=True):
         List[torch_geometric.data.Data]
     """
     vehicle, requests = trip[0], trip[1:]
-    graph = prepare_graph(timestep, vehicle, requests, network, directed)
-    graph.y = torch.tensor([label], dtype=torch.long)
-    return graph
+    if not evaluation:
+        graph = prepare_graph(timestep, vehicle, requests, network, directed, evaluation)
+        graph.y = torch.tensor([label], dtype=torch.long)
+        return graph
+    else:
+        return prepare_graph(timestep, vehicle, requests, network, directed, evaluation)
 
 def add_feature_initialization(data_point, p_dim):
     """Add initial features for each data point
@@ -174,6 +179,49 @@ def add_feature_initialization(data_point, p_dim):
     # Add the new attribute to the data point
     data_point.node_mu = node_mu
     return data_point
+
+def convert2onxx(model, checkpoint_path, onnx_path, example_input = "data/example_input.pt"):
+    """Convert PyTorch model to ONNX format"""
+    # Load the best checkpoint
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    model.load_state_dict(checkpoint['model_state_dict'])
+    model.eval()
+
+    # Prepare dummy input
+    data_point = torch.load(example_input)
+    print(f"Example input loaded from {example_input}.")
+    batch = torch.zeros(data_point.node_types.size(0), dtype=torch.long, device=data_point.node_types.device)
+    example_input = (
+        data_point.x_vehicle, 
+        data_point.x_pickup,
+        data_point.x_dropoff, 
+        data_point.edge_index,
+        data_point.edge_attr,
+        data_point.node_types,
+        data_point.node_mu, 
+        batch,
+    )
+    # Convert the model to ONNX format
+    torch.onnx.export(
+        model,                                  # PyTorch model
+        example_input,                          # Example input tensor
+        onnx_path,                              # Output file name
+        export_params=True,                     # Store trained weights
+        opset_version=11,                       # ONNX opset version (11+ recommended)
+        do_constant_folding=True,               # Optimize constant folding
+        input_names=["x_vehicle","x_pickup","x_dropoff","edge_index","edge_attr","node_types","mu","batch"],                  # Name of the input layer(s)
+        output_names=["output"],                # Name of the output layer(s)
+        dynamic_axes={                          # Dynamic axes for variable input sizes
+            "x_vehicle": {0: "num_vehicle_nodes"},   # Allow variable vehicle nodes
+            "x_pickup": {0: "num_pickup_nodes"},     # Allow variable pickup nodes
+            "x_dropoff": {0: "num_dropoff_nodes"},   # Allow variable dropoff nodes
+            "edge_index": {1: "num_edges"},          # Allow variable edges
+            "edge_attr": {0: "num_edges"},           # Allow variable edge features
+            "node_types": {0: "num_nodes"},          # Allow variable node types
+            "mu": {0: "num_nodes"},                  # Allow variable node embeddings
+            "batch": {0: "num_nodes"}                # Allow variable batch sizes
+        })
+    print(f"Pytorch model {checkpoint_path} exported to ONNX format {onnx_path}.")
 
 def weights_init(m):
     """Initialize neural network
@@ -501,7 +549,19 @@ def evaluate_model_s2v(model, loader, loss_fn, threshold, device, mislabled=Fals
     with torch.no_grad():
         for batch in loader:
             batch = batch.to(device)
-            outputs = model(batch)
+            x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types, batch_index = (
+                batch.x_vehicle,
+                batch.x_pickup,
+                batch.x_dropoff,
+                batch.edge_index,
+                batch.edge_attr,
+                batch.node_types,
+                batch.batch,
+            )
+            mu = batch.node_mu
+
+            # Forward pass
+            outputs = model(x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types, mu, batch_index)
 
             loss_total += loss_fn(outputs, batch.y.view(-1, 1).float()) * batch.y.size(0)
             total_data_points += batch.y.size(0)

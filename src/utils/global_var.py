@@ -28,7 +28,7 @@ VEHICLE_LIMIT = 1000
 ALPHA=0.5
 
 # Feasiblity check model
-MODEL_PATH = "weights/s2v/s2v_0-1_full_10000_di_edge.pt"
+MODEL_PATH = "weights/s2v/s2v.onnx"
 
 # Assignement problem
 ALGORITHM = 'ILP_FULL'

@@ -53,7 +53,7 @@ class Struc2Vec(nn.Module):
         )
         self.apply(weights_init)
 
-    def forward(self, data):
+    def forward(self, x_veihcle, x_pickup, x_dropoff, edge_index, edge_attr, node_types, mu, batch):
         """
          Args:
             data: torch_geometric.data.Batch object containing:
@@ -65,13 +65,6 @@ class Struc2Vec(nn.Module):
                 - node_types: Node type mapping (N,)
                 - node_mu: Initial values of mu (N, p_dim)
         """
-        edge_index, edge_attr, node_types, batch = (
-            data.edge_index,
-            data.edge_attr,
-            data.node_types,
-            data.batch,
-        )        
-        mu = data.node_mu
 
         # r round of iterations
         for _ in range(self.r):
@@ -107,7 +100,14 @@ class Struc2Vec(nn.Module):
             # Node type-specific transformations
             for node_type in self.type_transform:
                 mask = node_types == int(node_type)
-                mu[mask] = mu[mask] + self.type_transform[node_type](data[f"x_{self.node_type_dict[int(node_type)]}"])
+                if node_type == "0":
+                    mu[mask] = mu[mask] + self.type_transform[node_type](x_veihcle)
+                elif node_type == "1":
+                    mu[mask] = mu[mask] + self.type_transform[node_type](x_pickup)
+                elif node_type == "2":
+                    mu[mask] = mu[mask] + self.type_transform[node_type](x_dropoff)
+                else:
+                    raise ValueError(f"Invalid node type: {node_type}")
 
             mu = F.leaky_relu(mu)
         
