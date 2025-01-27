@@ -22,8 +22,8 @@ MAX_WAITING = 300 # Maximum waiting time before pickup
  # Otherwise, follow the order of the previous assignment and reoptimize LP_LIMITVAUE stops
 CTSP = "FIX_ONBOARD"
 CARSIZE = 4
-INITIAL_TIME = 0
-FINAL_TIME = 3600
+INITIAL_TIME = "00:00:00"
+FINAL_TIME = "01:00:00"
 VEHICLE_LIMIT = 1000
 ALPHA=0.5
 

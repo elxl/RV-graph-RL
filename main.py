@@ -7,7 +7,7 @@ from src.env.simulator.simulate import simulate_vehicles
 from src.utils.parser import initialize
 import src.utils.global_var as glo
 from src.env.struct.Network import Network
-from src.utils.helper import load_vehicles,load_requests,encode_time,get_active_vehicles,get_new_requests
+from src.utils.helper import load_vehicles,load_requests,encode_time,decode_time,get_active_vehicles,get_new_requests
 
 colorama_init()
 
@@ -101,8 +101,10 @@ feasibility = {
 
 print(f"{Fore.GREEN}Done with all set up!{Style.RESET_ALL}")
 print(f"{Fore.CYAN}Starting iterations!{Style.RESET_ALL}")
-current_time = glo.INITIAL_TIME - glo.INTERVAL
-while current_time < glo.FINAL_TIME - glo.INTERVAL:
+initial_time = decode_time(glo.INITIAL_TIME)
+final_time = decode_time(glo.FINAL_TIME)
+current_time = initial_time - glo.INTERVAL
+while current_time < final_time - glo.INTERVAL:
 
     current_time += glo.INTERVAL
     print(f"{Fore.WHITE}Updated simulation clock to {encode_time(current_time)} \
@@ -206,8 +208,8 @@ while current_time < glo.FINAL_TIME - glo.INTERVAL:
         f.write(f"\tAvg Delay\t{average_total_delay:.2f}\n")
 
     # Mean passengers
-    if current_time != glo.INITIAL_TIME and active_vehicles:
-        mean_passengers = stats_total_in_vehicle_time / ((current_time - glo.INITIAL_TIME) * len(active_vehicles))
+    if current_time != initial_time and active_vehicles:
+        mean_passengers = stats_total_in_vehicle_time / ((current_time - initial_time) * len(active_vehicles))
     else:
         mean_passengers = 0.0
     with open(results_file, "a") as f:
@@ -277,6 +279,12 @@ f.write(f"\tService Rate\t{service_rate:.2f}\t%\n")
 f.write(f"\tServed\t{final_count}\n")
 f.write(f"\tError Count\t{errors}\n")
 
+# Calculate average waiting time and delay
+average_waiting_time = stats_total_waiting_time / stats_pickup_count if stats_pickup_count > 0 else 0.0
+average_delay = stats_total_delay / stats_dropoff_count if stats_dropoff_count > 0 else 0.0
+f.write(f"\tAvg Waiting\t{average_waiting_time:.2f}\n")
+f.write(f"\tAvg Delay\t{average_delay:.2f}\n")
+
 # Calculate passenger time
 passenger_time = stats_total_in_vehicle_time
 for v in vehicles:
@@ -286,8 +294,8 @@ for v in vehicles:
             passenger_time += duration
 
 mean_passengers = (passenger_time /
-                    ((current_time - glo.INITIAL_TIME) * len(vehicles))
-                    if (current_time != glo.INITIAL_TIME) and vehicles else 0.0)
+                    ((current_time - initial_time) * len(vehicles))
+                    if (current_time != initial_time) and vehicles else 0.0)
 f.write(f"\tMean Passengers\t{mean_passengers:.2f}\n")
 
 # Vehicle state statistics

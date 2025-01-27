@@ -61,6 +61,15 @@ def encode_time(timeint):
 
     return f'{hour:02}:{minute:02}:{second:02}'
 
+def decode_time(timestring):
+    """Process input time string to seconds
+    """
+    try:
+        h, m, s = map(int, timestring.split(':'))
+        return h * 3600 + m * 60 + s
+    except ValueError as e:
+        raise ValueError(f"Invalid time string: {timestring}") from e
+
 def load_vehicles(filepath):
     """Load vehicles from file.
 
