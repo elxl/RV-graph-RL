@@ -138,6 +138,19 @@ def prepare_graph(timestep, vehicle, requests, network, directed=False, evaluati
                     node_number=node_number)
         return graph
     else:
+        node_feats_vehicle = np.array(node_feats_vehicle, dtype=np.float32)
+        node_feats_pickup = np.array(node_feats_pickup, dtype=np.float32)
+        node_feats_dropoff = np.array(node_feats_dropoff, dtype=np.float32)
+        edge_index = np.array(edge_index, dtype=np.int64)
+        edge_feats = np.array(edge_feats, dtype=np.float32)
+        node_types = np.array(node_types, dtype=np.int64)
+
+        node_feats_vehicle = torch.from_numpy(node_feats_vehicle)
+        node_feats_pickup = torch.from_numpy(node_feats_pickup)
+        node_feats_dropoff = torch.from_numpy(node_feats_dropoff)
+        edge_index = torch.from_numpy(edge_index).t().contiguous()
+        edge_feats = torch.from_numpy(edge_feats)
+        node_types = torch.from_numpy(node_types)
         return node_feats_vehicle, node_feats_pickup, node_feats_dropoff, edge_index, edge_feats, node_types
 
 def process_trip_lists(timestep, trip, network, label=1, directed=True, evaluation=False):

@@ -28,14 +28,14 @@ VEHICLE_LIMIT = 1000
 ALPHA=0.5
 
 # Feasiblity check model
-MODEL_PATH = "weights/s2v/s2v.onnx"
+MODEL_PATH = "weights/s2v/s2v_optimized.pt"
 
 # Assignement problem
 ALGORITHM = 'ILP_FULL'
 ASSIGNMENT_OBJECTIVE = 'AO_SERVICERATE'
 MISS_COST = 10000000  # Cost for unassigned requests
 RMT_REWARD = 100    # Reward multiplier for RMT objective
-OPTIMIZER_VERBOSE = True  # Set to True for verbose output
+OPTIMIZER_VERBOSE = False  # Set to True for verbose output
 
 # Simulation
 LAST_MINUTE_SERVICE = False # If waiting at stop as long as possible

@@ -115,32 +115,10 @@ def get_model():
         # )
         # checkpoint = torch.load(glo.MODEL_PATH, map_location='cpu')
         # model.load_state_dict(checkpoint['model_state_dict'])
-        # thread_local.model = model
+        thread_local.model = torch.jit.load(glo.MODEL_PATH)
         # thread_local.model.eval()
-        thread_local.model = ort.InferenceSession(glo.MODEL_PATH)
+        # thread_local.model = ort.InferenceSession(glo.MODEL_PATH)
     return thread_local.model
-
-def get_feasibility(current_time, clique, network, model, threshold=0.5):
-    x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types = process_trip_lists(current_time, clique, network, directed=True, evaluation=True)
-    node_num = len(x_vehicle) + len(x_pickup) + len(x_dropoff)
-    node_mu = np.zeros((node_num, 16), dtype=np.float32)
-    batch = np.zeros(node_num, dtype=np.int64)
-    inputs = {
-        "x_vehicle": np.array(x_vehicle, dtype=np.float32),
-        "x_pickup": np.array(x_pickup, dtype=np.float32),
-        "x_dropoff": np.array(x_dropoff, dtype=np.float32),
-        "edge_index": np.array(edge_index, dtype=np.int64).T,
-        "edge_attr": np.array(edge_attr, dtype=np.float32),
-        "node_types": np.array(node_types, dtype=np.int64),
-        "mu": np.array(node_mu),
-        "batch": batch,
-    }
-    with torch.no_grad():
-        feasibility = model.run(None, inputs)
-    if feasibility[0] > threshold:
-        return True
-    else:
-        return False
     
 def make_rtvgraph(wrap_data):
     """Generate RTV grah incrementally.
@@ -163,9 +141,12 @@ def make_rtvgraph(wrap_data):
     infeasible = data['infeasible']
     network = data['network']
     vehicles = data['vehicles']
-    model = data['model']
+    model_mode = data['model']
 
-    if model:
+    pass_calc = 0
+    all_calc = 0
+
+    if model_mode == 1:
         model = get_model()
 
     for i in range(start, end):
@@ -244,12 +225,23 @@ def make_rtvgraph(wrap_data):
                     # Check if all subsets exist
                     if not all_subsets_exist(combined_requests, rounds[k - 1]):
                         continue
-
+                    
+                    all_calc += 1
                     # Check route feasibility
-                    if model:
+                    if model_mode == 1:
                         # Process clique into nn input
                         requests = list(combined_requests)
-                        if not get_feasibility(current_time, [vehicle] + requests, network, model):
+                        x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types = process_trip_lists(current_time, [vehicle] + requests, network, evaluation=True, directed=True)
+                        node_num = x_vehicle.size(0) + x_pickup.size(0) + x_dropoff.size(0)
+                        mu = torch.zeros((node_num, 16), dtype=torch.float32)
+                        batch_index = torch.zeros(node_num, dtype=torch.int64)
+                        proba = model(x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types, mu, batch_index)
+                        if proba[0] < 0.5:
+                            pass_calc += 1
+                            continue
+                    elif model_mode == 2:
+                        # Randomly accept 50% of the time
+                        if random.random() > 0.5:
                             continue
 
                     # Calculate route and delay
@@ -292,6 +284,8 @@ def make_rtvgraph(wrap_data):
         # Update trip list
         with mtx:
             trip_list[vehicle] = potential_trips # trip_list: {Vehicle:[Trip]}
+            data['all_calc'].append(all_calc)
+            data['pass_calc'].append(pass_calc)
 
 def is_rr_connected(requests1, requests2, rr_graph):
     """Check if all requests are connected in the RR graph."""
@@ -321,6 +315,8 @@ def build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model, 
     trip_list = {}  # Dictionary to store possible trips per vehicle
     feasible = [] # List of feasible trips
     infeasible = [] # List of infeasible trips
+    all_calc = [] # List of all calculations
+    pass_calc = [] # List of passed calculations
 
     # Sort the vehicles based on custom criteria
     # sorted_vs = sorted(
@@ -344,6 +340,8 @@ def build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model, 
         'trip_list': trip_list,
         'feasible': feasible,
         'infeasible': infeasible,
+        'all_calc': all_calc,
+        'pass_calc': pass_calc,
         'network': network,
         'vehicles': vehicles,
         'model': model
@@ -368,4 +366,4 @@ def build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model, 
         for future in futures:
             future.result()
 
-    return trip_list, feasible, infeasible
+    return trip_list, feasible, infeasible, sum(all_calc), sum(pass_calc)

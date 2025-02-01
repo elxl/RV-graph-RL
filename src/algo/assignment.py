@@ -135,7 +135,7 @@ def ilp_assignment(trip_list, requests, time_param):
         is_optimal = status == GRB.OPTIMAL
         ilpfile.write(f"{'Optimal' if is_optimal else 'Suboptimal'}\n")
 
-    return assigned_trips
+    return assigned_trips, model.ObjVal
 
 def ilp_assignement_full(vehicles, requests, current_time, network, model, threads=1):
     """ Performs all steps in the algorithm.
@@ -154,11 +154,18 @@ def ilp_assignement_full(vehicles, requests, current_time, network, model, threa
     rv_edges, rr_edges = rvgenerator(vehicles, requests, current_time, network, threads)
 
     print("Building RTV graph")
-    trip_list, feasible, infeasible = build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model, threads=threads)
+    trip_list, feasible, infeasible, all_cal, pass_cal = build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model, threads=threads)
+    # trip_list_ml, _, _,_,_ = build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model=1, threads=threads)
+    # trip_list_navie, _, _ ,_,_= build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model=2, threads=threads)
 
     # Count total number of trips
     total_trips = sum(len(trips) for trips in trip_list.values())
+    # total_trips_ml = sum(len(trips) for trips in trip_list_ml.values())
+    # total_trips_navie = sum(len(trips) for trips in trip_list_navie.values())
+    # print(f"Trip list is of size {total_trips}\t {total_trips_ml}\t {total_trips_navie}")
     print(f"Trip list is of size {total_trips}")
+    if model == 1:
+        print(f"pass {pass_cal} over {all_cal}")
 
     # Check to ensure no previously assigned requests were rejected
     assigned_request_ids = {request.id for request in requests if request.assigned}
@@ -197,6 +204,8 @@ def ilp_assignement_full(vehicles, requests, current_time, network, model, threa
     #             rtv_file.write(f"{trip_info}\n")
 
     # Perform the ILP assignment
-    assigned_trips = ilp_assignment(trip_list, requests, current_time)
+    assigned_trips, obj = ilp_assignment(trip_list, requests, current_time)
+    # _, obj_ml = ilp_assignment(trip_list_ml, requests, current_time)
+    # _, obj_navie = ilp_assignment(trip_list_navie, requests, current_time)
 
-    return assigned_trips, feasible, infeasible
+    return assigned_trips, feasible, infeasible, obj

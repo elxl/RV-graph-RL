@@ -38,6 +38,15 @@ with open(results_file, "w") as results:
     else:
         results.write("UNLABELED\n")
 
+    # Write model information
+    results.write("MODEL ")
+    if args.ML == 0:
+        results.write("NO_MODEL\n")
+    elif args.ML == 1:
+        results.write(f"Load ML layer from {glo.MODEL_PATH}\n")
+    else:
+        results.write("RANDOM\n")
+
     # Write CTSP information
     results.write("CTSP ")
     if glo.CTSP == "FULL":
@@ -126,7 +135,8 @@ while current_time < final_time - glo.INTERVAL:
     ########### Run trip assignement ########
     #########################################
     print(f"{Fore.YELLOW}Starting trip assignement...{Style.RESET_ALL}")
-    assigned_trips, feasible, infeasible = ilp_assignement_full(active_vehicles,active_requests,current_time,network,args.ML,args.THREADS)
+    # assigned_trips, feasible, infeasible, obj, obj_ml, obj_navie = ilp_assignement_full(active_vehicles,active_requests,current_time,network,args.ML,args.THREADS)
+    assigned_trips, feasible, infeasible, obj = ilp_assignement_full(active_vehicles,active_requests,current_time,network,args.ML,args.THREADS)
     feasibility['feasible'][current_time] = feasible
     feasibility['infeasible'][current_time] = infeasible
 
@@ -173,6 +183,12 @@ while current_time < final_time - glo.INTERVAL:
 
     with open(results_file, "a") as f:
         f.write(f"Time stamp: {encode_time(current_time)} \t System time {datetime.datetime.now().time()}\n")
+
+    # Objective value
+    with open(results_file, "a") as f:
+        f.write(f"\tObjective Value\t{obj}\n")
+        # f.write(f"\tObjective Value ML\t{obj_ml}\n")
+        # f.write(f"\tObjective Value Navie\t{obj_navie}\n")
 
     # Service Rate
     if stats_entry_count > 0:

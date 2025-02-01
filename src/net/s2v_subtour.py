@@ -53,7 +53,7 @@ class Struc2Vec(nn.Module):
         )
         self.apply(weights_init)
 
-    def forward(self, x_veihcle, x_pickup, x_dropoff, edge_index, edge_attr, node_types, mu, batch):
+    def forward(self, x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types, mu, batch):
         """
          Args:
             data: torch_geometric.data.Batch object containing:
@@ -101,7 +101,7 @@ class Struc2Vec(nn.Module):
             for node_type in self.type_transform:
                 mask = node_types == int(node_type)
                 if node_type == "0":
-                    mu[mask] = mu[mask] + self.type_transform[node_type](x_veihcle)
+                    mu[mask] = mu[mask] + self.type_transform[node_type](x_vehicle)
                 elif node_type == "1":
                     mu[mask] = mu[mask] + self.type_transform[node_type](x_pickup)
                 elif node_type == "2":
