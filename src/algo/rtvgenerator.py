@@ -12,7 +12,6 @@ from src.utils.pytorch_util import add_feature_initialization
 from src.net.s2v_subtour import Struc2Vec
 from torch_geometric.data import Batch
 import src.utils.global_var as glo
-import onnxruntime as ort
 import numpy as np
 
 mtx = threading.Lock()
@@ -236,7 +235,7 @@ def make_rtvgraph(wrap_data):
                         mu = torch.zeros((node_num, 16), dtype=torch.float32)
                         batch_index = torch.zeros(node_num, dtype=torch.int64)
                         proba = model(x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types, mu, batch_index)
-                        if proba[0] < 0.5:
+                        if random.random() > proba[0]:
                             pass_calc += 1
                             continue
                     elif model_mode == 2:

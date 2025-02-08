@@ -39,6 +39,7 @@ def initialize():
     parser.add_argument('--REQUEST_DATA_FILE', type=str, default=glo.REQUEST_DATA_FILE, help="File for request data.")
     parser.add_argument('--VEHICLE_DATA_FILE', type=str, default=glo.VEHICLE_DATA_FILE, help="File for vehicle data.")
     parser.add_argument('--CARSIZE', type=int, default=glo.CARSIZE, help="Vehicle capacity.")
+    parser.add_argument('--MAX_NEW', type=int, default=glo.MAX_NEW, help="Maximum number of new stops.")
     parser.add_argument('--INITIAL_TIME', type=str, default=glo.INITIAL_TIME, help="Initial time (HHMMSS format).")
     parser.add_argument('--FINAL_TIME', type=str, default=glo.FINAL_TIME, help="Final time (HHMMSS format).")
     parser.add_argument('--ALGORITHM', type=str, choices=list(glo.algorithm_index.keys()), default=glo.ALGORITHM, help="Algorithm to use.")
@@ -74,6 +75,7 @@ def initialize():
     glo.REQUEST_DATA_FILE = process_string(args.REQUEST_DATA_FILE)
     glo.VEHICLE_DATA_FILE = process_string(args.VEHICLE_DATA_FILE)
     glo.CARSIZE = args.CARSIZE
+    glo.MAX_NEW = args.MAX_NEW
     glo.INITIAL_TIME = args.INITIAL_TIME
     glo.FINAL_TIME = args.FINAL_TIME
     glo.ALGORITHM = glo.algorithm_index[args.ALGORITHM]

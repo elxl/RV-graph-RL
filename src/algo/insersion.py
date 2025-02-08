@@ -212,7 +212,7 @@ def new_travel(vehicle, requests: List['Request'], network, current_time: int) -
             onboard.remove(ns.r)
     
     # Handling the FIX_ONBOARD case, considering the onboard passengers and new requests, and ignore pending requests
-    if glo.CTSP == "FIX_ONBOARD" and len(requests) + len(vehicle.passengers) > 4 and len(vehicle.passengers)!=0:
+    if glo.CTSP == "FIX_ONBOARD" and len(requests) + len(vehicle.passengers) > glo.CARSIZE and len(vehicle.passengers)!=0:
         for i in range(len(vehicle.passengers) - 1):
             meta_nodes[-2 - i].unlocks = [meta_nodes[-1 - i]]
         initially_available.add(meta_nodes[-len(vehicle.passengers)]) # Follow the previous assigned order
@@ -447,7 +447,7 @@ def new_travel_timed(vehicle, requests: List['Request'], network, current_time: 
             onboard.remove(ns.r)
     
     # Handling the FIX_ONBOARD case, considering the onboard passengers and new requests
-    if glo.CTSP == "FIX_ONBOARD" and len(requests) + len(vehicle.passengers) > 4 and len(vehicle.passengers)!=0:
+    if glo.CTSP == "FIX_ONBOARD" and len(requests) + len(vehicle.passengers) > glo.CARSIZE and len(vehicle.passengers)!=0:
         for i in range(len(vehicle.passengers) - 1):
             meta_nodes[-2 - i].unlocks = [meta_nodes[-1 - i]]
         initially_available.add(meta_nodes[-len(vehicle.passengers)]) # Follow the previous drop off order for onboard

@@ -29,14 +29,14 @@ parser = argparse.ArgumentParser(description="s2v training.")
 parser.add_argument(
     '--data',
     type=str,
-    default='./data/training/data.pt',
+    default='./data/training/data_0-1_full_10000_di_edge.pt',
     help="Directory for training data."
 )
 parser.add_argument(
     '--p_dim',
     type=int,
-    default=8,
-    help="Node feature dimension. (default: 8)"
+    default=16,
+    help="Node feature dimension. (default: 16)"
 )
 parser.add_argument(
     '--LR',
@@ -47,13 +47,13 @@ parser.add_argument(
 parser.add_argument(
     '--iteration',
     type=int,
-    default=3,
-    help="Number of iterations for embedding. (default: 2)"
+    default=4,
+    help="Number of iterations for embedding. (default: 4)"
 )
 parser.add_argument(
     '--batch_size',
     type=int,
-    default=32,
+    default=64,
     help="Batch size for training. (default: 32)"
 )
 parser.add_argument(
@@ -77,7 +77,7 @@ parser.add_argument(
 parser.add_argument(
     '--checkpoint_path',
     type=str,
-    default='./weights/s2v/s2v_0-1_full_10000_di_edge.pt',
+    default='./weights/s2v/saved_weights.pt',
     help="Path to the checkpoint file."
 )
 parser.add_argument(

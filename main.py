@@ -1,4 +1,4 @@
-import os, datetime, pickle
+import os, datetime, pickle, random
 from colorama import init as colorama_init
 from colorama import Fore
 from colorama import Style
@@ -113,6 +113,7 @@ print(f"{Fore.CYAN}Starting iterations!{Style.RESET_ALL}")
 initial_time = decode_time(glo.INITIAL_TIME)
 final_time = decode_time(glo.FINAL_TIME)
 current_time = initial_time - glo.INTERVAL
+random.seed(42)
 while current_time < final_time - glo.INTERVAL:
 
     current_time += glo.INTERVAL
@@ -325,5 +326,5 @@ f.write(f"\tTotal Inuse\t{total_inuse}\n")
 f.close()
 
 # Save feasibility data
-# with open(os.path.join(glo.DATAROOT, "training/feasibility_0-1_full.pkl"), "wb") as f:
+# with open(os.path.join(glo.DATAROOT, "training/feasibility_0-30_full_8.pkl"), "wb") as f:
 #     pickle.dump(feasibility, f)

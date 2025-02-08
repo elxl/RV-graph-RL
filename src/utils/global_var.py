@@ -17,9 +17,10 @@ DWELL_ALIGHT = 0 # Dropoff dwell time
 DWELL_PICKUP = 0 # Pickup dwell time
 MAX_WAITING = 300 # Maximum waiting time before pickup
  # Accelration logic.
- # FIX_ONBOARD: Do not consider previous assignement. Keep onboarding dropoff order if there are more than 4 onboarding + new passengers. Reoptimize if less than 4. 
- # FIX_PREFIX: Consider previous assignement. If new request exceeds LP_LIMITVALUE/2, return infeasible. 
- # Otherwise, follow the order of the previous assignment and reoptimize LP_LIMITVAUE stops
+ # FIX_ONBOARD: Do not consider previous assignement. Keep onboarding dropoff order if onboarding + new passengers > CARSIZE. Reoptimize if less than CARSIZE. (default)
+ # FIX_PREFIX: Consider previous assignement. If new request exceeds LP_LIMITVALUE/2, return infeasible.
+ # Otherwise, follow the order of the previous assignment and reoptimize LP_LIMITVAUE stops.
+ # FULL: Reoptimize all stops.
 CTSP = "FIX_ONBOARD"
 CARSIZE = 4
 INITIAL_TIME = "00:00:00"
@@ -28,7 +29,7 @@ VEHICLE_LIMIT = 1000
 ALPHA=0.5
 
 # Feasiblity check model
-MODEL_PATH = "weights/s2v/s2v_optimized.pt"
+MODEL_PATH = "weights/s2v/s2v_8_optimized.pt"
 
 # Assignement problem
 ALGORITHM = 'ILP_FULL'

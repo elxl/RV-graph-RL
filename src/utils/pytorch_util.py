@@ -251,7 +251,7 @@ def _incidence_matrix(  # noqa: C901
     edgelist=None,
     oriented=False,
     weight=None,
-    dtype=np.float_
+    dtype=np.float64
 ):  # pragma: no cover
     """Returns incidence matrix of G.
 

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_scatter import scatter_sum,scatter_mean,scatter_softmax
+from torch_scatter import scatter_sum,scatter_mean,scatter_add
 from src.utils.pytorch_util import weights_init
 
 class Struc2Vec(nn.Module):
@@ -23,7 +23,7 @@ class Struc2Vec(nn.Module):
         self.theta3_linear = nn.Linear(nfeatures_edge, p_dim) # Edge embeddings weights
 
         # Attention mechanism layers
-        # self.attn_linear = nn.Linear(3 * p_dim, 1)  # Attention weights
+        self.attn_linear = nn.Linear(2 * p_dim + p_dim, 1)  # Attention weights
 
         # Type-specific layers
         self.type_transform = nn.ModuleDict({
@@ -67,33 +67,40 @@ class Struc2Vec(nn.Module):
         """
 
         # r round of iterations
+        # src, dst = edge_index[0], edge_index[1]  # Source and target nodes
         for _ in range(self.r):
             ti = edge_attr
             transformed_ti = F.leaky_relu(
                 self.theta3_linear(ti.view(-1, self.nfeatures_edge))
             )
-            aggregated_ti = scatter_sum(
-                transformed_ti,
-                edge_index[1],
-                dim=0,
-                dim_size=node_types.size(0)
-            )
 
             # # Attention mechanism
-            # src, dst = edge_index  # Source and target nodes
-            # concatenated_features = torch.cat([
-            #     mu[src], mu[dst], transformed_ti
-            # ], dim=1)  # Concatenate features of source, target, and edge
-            # attention_scores = self.attn_linear(concatenated_features)  # Compute attention scores
-            # attention_scores = scatter_softmax(attention_scores, dst, dim=0)  # Normalize scores per destination
+            concatenated_features = torch.cat([mu[edge_index[0]], mu[edge_index[1]], transformed_ti], dim=1)  # Concatenate features of source, target, edge
+            attention_scores = self.attn_linear(concatenated_features)  # Compute attention scores
+            # attention_scores = scatter_softmax(attention_scores, edge_index[1], dim=0)  # Normalize scores per destination
+            exp_scores = torch.exp(attention_scores)
+            sum_exp = scatter_add(exp_scores, edge_index[1], dim=0, dim_size=node_types.size(0))
+            attention_scores = exp_scores / sum_exp[edge_index[1]]  # Normalize scores per destination
 
-            # # Message passing with attention
-            # weighted_messages = attention_scores * mu[src]  # Scale messages by attention
-            # aggregated_mu = scatter_sum(weighted_messages, dst, dim=0, dim_size=mu.size(0))
-            aggregated_mu = scatter_sum(mu[edge_index[0]],
-                                        edge_index[1],
-                                        dim=0,
-                                        dim_size=node_types.size(0))
+            # Message passing with attention
+            weighted_messages = attention_scores * mu[edge_index[0]]  # Scale messages by attention
+            aggregated_mu = scatter_sum(weighted_messages, edge_index[1], dim=0, dim_size=node_types.size(0))
+
+            weighted_edges = attention_scores * transformed_ti
+            aggregated_ti = scatter_sum(weighted_edges, edge_index[1], dim=0, dim_size=node_types.size(0))
+
+            # Message passing without attention
+            # aggregated_mu = scatter_sum(mu[edge_index[0]],
+            #                             edge_index[1],
+            #                             dim=0,
+            #                             dim_size=node_types.size(0))
+            # aggregated_ti = scatter_sum(
+            #     transformed_ti,
+            #     edge_index[1],
+            #     dim=0,
+            #     dim_size=node_types.size(0))
+            
+
             # Message passing
             mu = self.theta1_linear(aggregated_mu) + self.theta2_linear(aggregated_ti)
 
