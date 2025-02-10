@@ -125,15 +125,16 @@ def ilp_assignment(trip_list, requests, time_param):
     print(f"Made {icount} assignments.")
 
     # Write statistics to a file (adjust the path as needed)
-    with open(f"{glo.RESULTS_DIRECTORY}/ilp.csv", "a") as ilpfile:
-        ilpfile.write(f"{time_param}\t")
-        ilpfile.write(f"{model.ObjVal}\t")
-        ilpfile.write(f"{model.Runtime}\t")
-        ilpfile.write(f"{model.Params.MIPGapAbs}\t")
-        ilpfile.write(f"{model.Params.MIPGap}\t")
-        ilpfile.write(f"{icount}\t")
-        is_optimal = status == GRB.OPTIMAL
-        ilpfile.write(f"{'Optimal' if is_optimal else 'Suboptimal'}\n")
+    if glo.OPTIMIZER_VERBOSE:
+        with open(f"{glo.RESULTS_DIRECTORY}/ilp.csv", "a") as ilpfile:
+            ilpfile.write(f"{time_param}\t")
+            ilpfile.write(f"{model.ObjVal}\t")
+            ilpfile.write(f"{model.Runtime}\t")
+            ilpfile.write(f"{model.Params.MIPGapAbs}\t")
+            ilpfile.write(f"{model.Params.MIPGap}\t")
+            ilpfile.write(f"{icount}\t")
+            is_optimal = status == GRB.OPTIMAL
+            ilpfile.write(f"{'Optimal' if is_optimal else 'Suboptimal'}\n")
 
     return assigned_trips, model.ObjVal
 
