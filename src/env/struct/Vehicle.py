@@ -166,3 +166,18 @@ class Vehicle:
             int: The current state (IDLE, ENROUTE, IN_USE, REBALANCING).
         """
         return self.state
+    
+    def __eq__(self, other):
+        """
+        Defines the behavior of the '==' (equal) operator for Vehicle objects, comparing them by their ID.
+
+        Args:
+            other (Vehicle): Another Vequest object to compare against.
+
+        Returns:
+            bool: True if the current Vequest's ID is equal to the other's, False otherwise.
+        """
+        return self.id == other.id
+    
+    def __hash__(self):
+        return hash(self.id)

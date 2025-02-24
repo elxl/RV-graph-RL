@@ -8,14 +8,15 @@ PRUNING_RR_K = 0 # Maximum number of rr edges for each request. Rank by detour f
 # RTV generation
 RTV_TIMELIMIT = 0 # Time limit for generating RTV graph. Set 0 to indicate no limit.
 MAX_NEW = 8 # Maximum new pickup and dropoff stops.
+RANDOM = 0.5 # Random drop rate for cliques
 
 # Trip generation/feasibility check
 LP_LIMITVALUE = 8 # LP_LIMITVALUE/2 is the limit of the number of new requests that is allowed to be assigned to a vehicle at one time
 CTSP_OBJECTIVE = 'CTSP_VTT' # Routing objective. VTT: vehicle time travel; DELAY: total delay VMT: vehicle distance travel (TODO)
-MAX_DETOUR = 600 # Maximum detour time of passenger
+MAX_DETOUR = 240 # Maximum detour time of passenger
 DWELL_ALIGHT = 0 # Dropoff dwell time
 DWELL_PICKUP = 0 # Pickup dwell time
-MAX_WAITING = 300 # Maximum waiting time before pickup
+MAX_WAITING = 120 # Maximum waiting time before pickup
  # Accelration logic.
  # FIX_ONBOARD: Do not consider previous assignement. Keep onboarding dropoff order if onboarding + new passengers > CARSIZE. Reoptimize if less than CARSIZE. (default)
  # FIX_PREFIX: Consider previous assignement. If new request exceeds LP_LIMITVALUE/2, return infeasible.
@@ -37,6 +38,7 @@ ASSIGNMENT_OBJECTIVE = 'AO_SERVICERATE'
 MISS_COST = 10000000  # Cost for unassigned requests
 RMT_REWARD = 100    # Reward multiplier for RMT objective
 OPTIMIZER_VERBOSE = False  # Set to True for verbose output
+QUICK = True # Set to True for quick optimization
 
 # Simulation
 LAST_MINUTE_SERVICE = False # If waiting at stop as long as possible

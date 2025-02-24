@@ -82,7 +82,7 @@ class Action:
     NO_ACTION = 3
 
 def recursive_search(initial_location: int, residual_capacity: int, initially_available: Set[MetaNodeStop], 
-                     network, current_time: int, best_time: int, prev_action = Action.NO_ACTION) -> Tuple[int, List[NodeStop]]:
+                     network, current_time: int, best_time: int, prev_action = Action.NO_ACTION, trigger='STANDARD') -> Tuple[int, List[NodeStop]]:
     """
     Recursive search function to find the optimal sequence of stops (pickups/drop-offs) 
     while considering capacity and time constraints.
@@ -117,7 +117,10 @@ def recursive_search(initial_location: int, residual_capacity: int, initially_av
 
         # Calculate the time when vehicle finishing serving m
         new_location = m.node.node
-        arrival_time = current_time + network.get_time(initial_location, new_location) # arrivel_time is the time that the vehicle starts to serve the current node
+        if trigger == 'STANDARD':
+            arrival_time = current_time + network.get_time(initial_location, new_location) # arrivel_time is the time that the vehicle starts to serve the current node
+        else:
+            arrival_time = current_time + 1.5*network.get_time(initial_location, new_location)
         
         # if m.node.is_pickup and m.node.r.entry_time > arrival_time:
         #     arrival_time = m.node.r.entry_time
@@ -155,17 +158,24 @@ def recursive_search(initial_location: int, residual_capacity: int, initially_av
             remaining_nodes.add(newnode)
 
         # Check subsequent reachability
-        basic_reachability = all(
-            arrival_time + network.get_time(new_location, x.node.node) <=
-            (x.node.r.latest_boarding if x.node.is_pickup else x.node.r.latest_alighting)
-            for x in remaining_nodes
-        )
+        if trigger == 'STANDARD':
+            basic_reachability = all(
+                arrival_time + network.get_time(new_location, x.node.node) <=
+                (x.node.r.latest_boarding if x.node.is_pickup else x.node.r.latest_alighting)
+                for x in remaining_nodes
+            )
+        else:
+            basic_reachability = all(
+                arrival_time + 1.5*network.get_time(new_location, x.node.node) <=
+                (x.node.r.latest_boarding if x.node.is_pickup else x.node.r.latest_alighting)
+                for x in remaining_nodes
+            )
         if not basic_reachability:
             continue
         
         # Update action for next node visit
         this_action = Action.PICKUP if m.node.is_pickup else Action.DROPOFF
-        (tail_time, tail_stops) = recursive_search(new_location, new_residual_capacity, remaining_nodes, network, arrival_time, best_time, this_action)
+        (tail_time, tail_stops) = recursive_search(new_location, new_residual_capacity, remaining_nodes, network, arrival_time, best_time, this_action, trigger)
 
         # Check feasibility of subsequent trip
         if tail_time == -1:
@@ -178,7 +188,7 @@ def recursive_search(initial_location: int, residual_capacity: int, initially_av
 
     return (best_time, best_tail)
 
-def new_travel(vehicle, requests: List['Request'], network, current_time: int) -> Tuple[int, List[NodeStop]]:
+def new_travel(vehicle, requests: List['Request'], network, current_time: int, trigger) -> Tuple[int, List[NodeStop]]:
     """
     Optimizes a vehicle's route for onboard passengers and new requests.
 
@@ -254,7 +264,7 @@ def new_travel(vehicle, requests: List['Request'], network, current_time: int) -
     start_node = vehicle.node
     if glo.CTSP_OBJECTIVE == "CTSP_VTT" or glo.CTSP_OBJECTIVE == "CTSP_DELAY":
         optimal = recursive_search(start_node, vehicle.capacity - len(vehicle.passengers),
-                                   initially_available, network, call_time, -1)
+                                   initially_available, network, call_time, -1, trigger)
     else:
         raise RuntimeError(f"{glo.CTSP_OBJECTIVE} is not a valid CTSP objective")
 
@@ -306,7 +316,7 @@ def travel(vehicle, requests: List['Request'], network, current_time: int, trigg
     elif trigger == "REBALANCING":
         raise NameError("Rebalancing moudle hasn't been implemented!")
     else:
-        return new_travel(vehicle, requests, network, current_time)
+        return new_travel(vehicle, requests, network, current_time, trigger)
 
 #####################################################################################
 ###### The following are the time constrained version of the previous functions #####

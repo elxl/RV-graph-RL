@@ -115,6 +115,7 @@ def get_model():
         # checkpoint = torch.load(glo.MODEL_PATH, map_location='cpu')
         # model.load_state_dict(checkpoint['model_state_dict'])
         thread_local.model = torch.jit.load(glo.MODEL_PATH)
+        thread_local.model.eval()
         # thread_local.model.eval()
         # thread_local.model = ort.InferenceSession(glo.MODEL_PATH)
     return thread_local.model
@@ -145,8 +146,7 @@ def make_rtvgraph(wrap_data):
     pass_calc = 0
     all_calc = 0
 
-    if model_mode == 1:
-        model = get_model()
+    model = get_model()
 
     for i in range(start, end):
         start_time = time.time()
@@ -226,21 +226,21 @@ def make_rtvgraph(wrap_data):
                         continue
                     
                     all_calc += 1
+                    # Process clique into nn input
+                    requests = list(combined_requests)
+                    x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types = process_trip_lists(current_time, [vehicle] + requests, network, evaluation=True, directed=True)
+                    node_num = x_vehicle.size(0) + x_pickup.size(0) + x_dropoff.size(0)
+                    mu = torch.zeros((node_num, 16), dtype=torch.float32)
+                    batch_index = torch.zeros(node_num, dtype=torch.int64)
+                    proba = model(x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types, mu, batch_index)
                     # Check route feasibility
                     if model_mode == 1:
-                        # Process clique into nn input
-                        requests = list(combined_requests)
-                        x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types = process_trip_lists(current_time, [vehicle] + requests, network, evaluation=True, directed=True)
-                        node_num = x_vehicle.size(0) + x_pickup.size(0) + x_dropoff.size(0)
-                        mu = torch.zeros((node_num, 16), dtype=torch.float32)
-                        batch_index = torch.zeros(node_num, dtype=torch.int64)
-                        proba = model(x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types, mu, batch_index)
                         if random.random() > proba[0]:
                             pass_calc += 1
                             continue
                     elif model_mode == 2:
-                        # Randomly accept 50% of the time
-                        if random.random() > 0.5:
+                        # Randomly drop certain percentage of the time
+                        if random.random() > 1-glo.RANDOM:
                             continue
 
                     # Calculate route and delay

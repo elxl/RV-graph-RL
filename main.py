@@ -100,6 +100,7 @@ stats_total_delay = 0
 stats_shared_count = 0
 storage_service_count = 0
 storage_request_count = 0
+stats_occupancy = []
 
 # Collect data for training
 feasibility = {
@@ -115,6 +116,9 @@ final_time = decode_time(glo.FINAL_TIME)
 current_time = initial_time - glo.INTERVAL
 random.seed(42)
 while current_time < final_time - glo.INTERVAL:
+    # Statistic for current time step
+    occupancy = 0
+    num_occupied_vehicle = 0
 
     current_time += glo.INTERVAL
     print(f"{Fore.WHITE}Updated simulation clock to {encode_time(current_time)} \
@@ -169,6 +173,10 @@ while current_time < final_time - glo.INTERVAL:
     ############ Update statistics and log information #######
     ##########################################################
     for vehicle in vehicles:
+        # Claulate occupancy
+        occupancy += len(vehicle.passengers)
+        num_occupied_vehicle += 1 if vehicle.passengers else 0
+
         # Process boarded requests
         for r in vehicle.just_boarded:
             stats_total_waiting_time += r.boarding_time - r.entry_time
@@ -243,6 +251,15 @@ while current_time < final_time - glo.INTERVAL:
     # Total shared
     with open(results_file, "a") as f:
         f.write(f"\tTotal shared\t{stats_shared_count}\n")    
+
+    # Occupancy
+    with open(results_file, "a") as f:
+        if num_occupied_vehicle > 0:
+            f.write(f"\tOccupancy\t{occupancy/num_occupied_vehicle:.2f}\n")
+            stats_occupancy.append(occupancy/num_occupied_vehicle)
+        else:
+            f.write(f"\tOccupancy\t0.0\n")
+            stats_occupancy.append(0.0)
     
     #########################################################
     ############# Update active requests buffer #############
@@ -314,6 +331,10 @@ mean_passengers = (passenger_time /
                     ((current_time - initial_time) * len(vehicles))
                     if (current_time != initial_time) and vehicles else 0.0)
 f.write(f"\tMean Passengers\t{mean_passengers:.2f}\n")
+
+# Mean occupancy
+mean_occupancy = sum(stats_occupancy) / len(stats_occupancy) if stats_occupancy else 0.0
+f.write(f"\tMean Occupancy\t{mean_occupancy:.2f}\n")
 
 # Vehicle state statistics
 total_idle = sum(v.get_total_idle(current_time) for v in vehicles)

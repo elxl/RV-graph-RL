@@ -87,9 +87,9 @@ def ilp_assignment(trip_list, requests, time_param):
             model.addConstr(quicksum(e_vars) + x[k] == 1, name=f"c2_{rid}")
 
     # Optional: Set Gurobi parameters
-    quick = True  # Adjust as needed
+    quick = glo.QUICK  # Adjust as needed
     if not quick:
-        model.Params.TimeLimit = 60  # Time limit in seconds
+        model.Params.TimeLimit = 120  # Time limit in seconds
         model.Params.MIPGap = 1e-8
         # model.Params.MIPGapAbs = 0.0
         # model.Params.BestObjStop = GRB.INFINITY

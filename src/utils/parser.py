@@ -52,6 +52,8 @@ def initialize():
                         help="Enable or disable last minute service.")
     parser.add_argument('--INTERVAL', type=int, default=glo.INTERVAL, help="Time interval for simulation.")
     parser.add_argument('--RTV_TIMELIMIT', type=int, default=glo.RTV_TIMELIMIT, help="RTV time limit.")
+    parser.add_argument('--RANDOM', type=float, default=glo.RANDOM, help="Random drop rate for cliques.")
+    parser.add_argument('--QUICK', type=int, default=glo.QUICK, help="Quick optimization.")
     parser.add_argument('--DWELL_PICKUP', type=int, default=glo.DWELL_PICKUP, help="Dwell time for pickups.")
     parser.add_argument('--DWELL_ALIGHT', type=int, default=glo.DWELL_ALIGHT, help="Dwell time for alighting.")
     parser.add_argument('--PRUNING_RR_K', type=int, default=glo.PRUNING_RR_K, help="Pruning RR parameter.")
@@ -86,6 +88,8 @@ def initialize():
     glo.LAST_MINUTE_SERVICE = args.LAST_MINUTE_SERVICE.lower() == "true"
     glo.INTERVAL = args.INTERVAL
     glo.RTV_TIMELIMIT = args.RTV_TIMELIMIT
+    glo.RANDOM = args.RANDOM
+    glo.QUICK = args.QUICK
     glo.DWELL_PICKUP = args.DWELL_PICKUP
     glo.DWELL_ALIGHT = args.DWELL_ALIGHT
     glo.PRUNING_RR_K = args.PRUNING_RR_K
