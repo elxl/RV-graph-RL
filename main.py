@@ -1,4 +1,4 @@
-import os, datetime, pickle, random
+import os, datetime, pickle, random, time, gc
 from colorama import init as colorama_init
 from colorama import Fore
 from colorama import Style
@@ -76,6 +76,7 @@ config = {
     'TIMEFILE':glo.TIMEFILE,
     'DISTFILE':glo.DISTFILE,
     'EDGECOST_FILE':glo.EDGECOST_FILE,
+    'PRED_FILE':glo.PRED_FILE,
     'DWELL_PICKUP':glo.DWELL_PICKUP,
     'DWELL_ALIGHT':glo.DWELL_ALIGHT
 }
@@ -115,6 +116,7 @@ initial_time = decode_time(glo.INITIAL_TIME)
 final_time = decode_time(glo.FINAL_TIME)
 current_time = initial_time - glo.INTERVAL
 random.seed(42)
+start = time.perf_counter()
 while current_time < final_time - glo.INTERVAL:
     # Statistic for current time step
     occupancy = 0
@@ -291,6 +293,7 @@ while current_time < final_time - glo.INTERVAL:
     print(f"Number of assigned passengers:{len(final_assigned_requests)}/{active_num}")
     print(f"Done with iteration{Style.RESET_ALL}")
 
+end = time.perf_counter()
 #########################################################
 ############# Final statistics and summary #############
 #########################################################
@@ -344,7 +347,10 @@ total_inuse = sum(v.get_total_inuse(current_time) for v in vehicles)
 f.write(f"\tTotal Idle\t{total_idle}\n")
 f.write(f"\tTotal En Route\t{total_enroute}\n")
 f.write(f"\tTotal Inuse\t{total_inuse}\n")
+f.write(f"\tTotal Running Time\t{round(end - start)}\n")
 f.close()
+
+gc.collect()
 
 # Save feasibility data
 # with open(os.path.join(glo.DATAROOT, "training/feasibility_0-30_full_8.pkl"), "wb") as f:

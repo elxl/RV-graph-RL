@@ -5,6 +5,8 @@ It includes methods to handle vehicle travel offsets and shortest-path calculati
 
 import os
 import math
+import networkx as nx
+import numpy as np
 from collections import deque, defaultdict, namedtuple
 
 Neighbor = namedtuple("Neighbor", ["target","weight"])
@@ -25,6 +27,7 @@ class Network:
         self.distance_matrix = self.load_matrix(os.path.join(config['DATAROOT'], config['DISTFILE'])) 
         if config['EDGECOST_FILE'] is not None:
             self.adjacency_list = self.load_adjacency_list(os.path.join(config['DATAROOT'], config['EDGECOST_FILE']))
+        # self.pred_matrix = np.load(os.path.join(config['DATAROOT'], config['PRED_FILE']))
         self.dwell_pickup = config['DWELL_PICKUP']
         self.dwell_alight = config['DWELL_ALIGHT']
         self.shortest_paths = defaultdict(return_none) # Store shortest path to avoid recomputation
@@ -57,14 +60,39 @@ class Network:
             list of list of tuple: The adjacency list, where each entry is a tuple of (target, weight).
         """
         adjacency_list = []
+        # Create a directed graph from edges
+        self.G = nx.DiGraph()
+
         with open(file_path, 'r') as f:
             for line in f:
                 origin, dest, length = map(int, line.strip().split(","))
                 origin, dest = origin - 1, dest - 1  # Adjust to zero-index
+                self.G.add_edge(origin, dest, weight=length)
                 if len(adjacency_list) < origin + 1:
                     adjacency_list.extend([[] for _ in range(origin + 1 - len(adjacency_list))])
                 adjacency_list[origin].append(Neighbor(target=dest, weight=length))
         return adjacency_list
+    
+    # def load_adjacency_list(self, file_path):
+    #     """
+    #     Loads the adjacency list for Dijkstra's algorithm.
+        
+    #     Args:
+    #         file_path (str): Path to the file containing adjacency list data.
+        
+    #     Returns:
+    #         list of list of tuple: The adjacency list, where each entry is a tuple of (target, weight).
+    #     """
+    #     adjacency_list = []
+    #     # Create a directed graph from edges
+    #     self.G = nx.DiGraph()
+
+    #     with open(file_path, 'r') as f:
+    #         for line in f:
+    #             origin, dest, length = map(int, line.strip().split(","))
+    #             origin, dest = origin - 1, dest - 1  # Adjust to zero-index
+    #             self.G.add_edge(origin, dest, weight=length)
+    #     return adjacency_list
 
     def get_time(self, node_one, node_two):
         """
@@ -234,3 +262,45 @@ class Network:
         self.shortest_paths[(origin,destination)] = path
 
         return path
+    
+    # def dijkstra(self, origin, destination):
+    #     """
+    #     Finds the shortest path from origin to destination using NetworkX's Dijkstra algorithm.
+        
+    #     Args:
+    #         origin (int): The starting node.
+    #         destination (int): The target node.
+        
+    #     Returns:
+    #         list: The shortest path from origin to destination as a list of node indices.
+    #     """
+    #     if not (self.shortest_paths[(origin,destination)] is None):
+    #         return self.shortest_paths[(origin,destination)]
+    #     else:
+    #         path = nx.dijkstra_path(self.G, origin, destination, weight='weight')
+    #         self.shortest_paths[(origin, destination)] = path
+    #         return path
+
+    # def dijkstra(self, origin, destination):
+    #     """Retrieve the shortest path from origin to destination using the predecessor matrix.
+
+    #     Args:
+    #         origin (int): The starting node.
+    #         destination (int): The target node.
+
+    #     Returns:
+    #         list: The shortest path from origin to destination as a list of node indices.
+    #     """
+
+    #     if not (self.shortest_paths[(origin,destination)] is None):
+    #         return self.shortest_paths[(origin,destination)]
+        
+    #     path = [destination]
+
+    #     while origin != destination:
+    #         pred = self.pred_matrix[origin][destination]
+    #         path.insert(0,pred)
+    #         destination = pred
+    #     self.shortest_paths[(origin, destination)] = path
+      
+    #     return path

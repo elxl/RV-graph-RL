@@ -31,7 +31,9 @@ def initialize():
     parser.add_argument('--DATAROOT', type=str, default=glo.DATAROOT, help="Root directory for data.")
     parser.add_argument('--RESULTS_DIRECTORY', type=str, default=glo.RESULTS_DIRECTORY, help="Directory for storing results.")
     parser.add_argument('--TIMEFILE', type=str, default=glo.TIMEFILE, help="File for time data.")
+    parser.add_argument('--DISTFILE', type=str, default=glo.DISTFILE, help="File for distance data.")
     parser.add_argument('--EDGECOST_FILE', type=str, default=glo.EDGECOST_FILE, help="File for edge cost data.")
+    parser.add_argument('--PRED_FILE', type=str, default=glo.EDGECOST_FILE, help="File for predecessor data.")
     parser.add_argument('--LOG_FILE', type=str, default=glo.LOG_FILE, help="File for result log.")
     parser.add_argument('--VEHICLE_LIMIT', type=int, default=glo.VEHICLE_LIMIT, help="Limit on the number of vehicles.")
     parser.add_argument('--MAX_WAITING', type=int, default=glo.MAX_WAITING, help="Maximum waiting time.")
@@ -51,9 +53,8 @@ def initialize():
     parser.add_argument('--LAST_MINUTE_SERVICE', type=str, choices=["true", "false"], default="false",
                         help="Enable or disable last minute service.")
     parser.add_argument('--INTERVAL', type=int, default=glo.INTERVAL, help="Time interval for simulation.")
-    parser.add_argument('--RTV_TIMELIMIT', type=int, default=glo.RTV_TIMELIMIT, help="RTV time limit.")
+    parser.add_argument('--RTV_TIMELIMIT', type=float, default=glo.RTV_TIMELIMIT, help="RTV time limit.")
     parser.add_argument('--RANDOM', type=float, default=glo.RANDOM, help="Random drop rate for cliques.")
-    parser.add_argument('--QUICK', type=int, default=glo.QUICK, help="Quick optimization.")
     parser.add_argument('--DWELL_PICKUP', type=int, default=glo.DWELL_PICKUP, help="Dwell time for pickups.")
     parser.add_argument('--DWELL_ALIGHT', type=int, default=glo.DWELL_ALIGHT, help="Dwell time for alighting.")
     parser.add_argument('--PRUNING_RR_K', type=int, default=glo.PRUNING_RR_K, help="Pruning RR parameter.")
@@ -69,7 +70,9 @@ def initialize():
     glo.DATAROOT = process_string(args.DATAROOT)
     glo.RESULTS_DIRECTORY = process_string(args.RESULTS_DIRECTORY)
     glo.TIMEFILE = process_string(args.TIMEFILE)
+    glo.DISTFILE = process_string(args.DISTFILE)
     glo.EDGECOST_FILE = process_string(args.EDGECOST_FILE)
+    glo.PRED_FILE = process_string(args.PRED_FILE)
     glo.LOG_FILE = process_string(args.LOG_FILE)
     glo.VEHICLE_LIMIT = args.VEHICLE_LIMIT
     glo.MAX_WAITING = args.MAX_WAITING
@@ -89,7 +92,6 @@ def initialize():
     glo.INTERVAL = args.INTERVAL
     glo.RTV_TIMELIMIT = args.RTV_TIMELIMIT
     glo.RANDOM = args.RANDOM
-    glo.QUICK = args.QUICK
     glo.DWELL_PICKUP = args.DWELL_PICKUP
     glo.DWELL_ALIGHT = args.DWELL_ALIGHT
     glo.PRUNING_RR_K = args.PRUNING_RR_K

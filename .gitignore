@@ -4,5 +4,7 @@ results/
 weights/
 *.ipynb
 data/
+data_chicago/
+data_dc/
 .vscode/
 .DS_Store

@@ -149,7 +149,7 @@ def make_rtvgraph(wrap_data):
     model = get_model()
 
     for i in range(start, end):
-        start_time = time.time()
+        start_time = time.perf_counter()
         timeout = False
 
         # Select current vehicle and make trip list up to size k.
@@ -159,7 +159,7 @@ def make_rtvgraph(wrap_data):
 
         # Generate trip for onboard passengers with no new assignment (deliever onboard passengers)
         baseline = Trip()
-        cost,path = travel_timed(vehicle, [], network, current_time, start_time, glo.RTV_TIMELIMIT, 'STANDARD')
+        cost,path = travel_timed(vehicle, [], network, current_time, start_time, 0, 'STANDARD')
         if glo.CTSP_OBJECTIVE == "CTSP_DELAY":
             cost = delay_all(vehicle,path,network,current_time)
         baseline.cost, baseline.order_record = cost,path
@@ -201,7 +201,7 @@ def make_rtvgraph(wrap_data):
             for idx1, trip1 in enumerate(rounds[k - 1]):
                 for idx2 in range(idx1 + 1, len(rounds[k - 1])):
                     # Timeout check
-                    if glo.RTV_TIMELIMIT and (time.time() - start_time) > glo.RTV_TIMELIMIT:
+                    if glo.RTV_TIMELIMIT and (time.perf_counter() - start_time) > glo.RTV_TIMELIMIT:
                         timeout = True
                         break
 
@@ -245,7 +245,7 @@ def make_rtvgraph(wrap_data):
 
                     # Calculate route and delay
                     path_cost, path_order = travel_timed(
-                        vehicle, list(combined_requests), network, current_time, start_time, glo.RTV_TIMELIMIT, trigger='STANDARD'
+                        vehicle, list(combined_requests), network, current_time, start_time, 0, trigger='STANDARD'
                     )
                     with mtx:
                         if path_cost < 0:
@@ -259,6 +259,8 @@ def make_rtvgraph(wrap_data):
                             trip = Trip(cost=path_cost, order_record=path_order, requests=list(combined_requests))
                             new_round.append(trip)
                             existing_trips.add(frozenset(combined_requests))
+                if timeout:
+                    break
             rounds.append(new_round)
 
         # Compile potential trip list
