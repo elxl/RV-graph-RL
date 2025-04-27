@@ -81,6 +81,139 @@ class Action:
     DROPOFF = 2
     NO_ACTION = 3
 
+def recursive_search_novehicle(initial_location: int, residual_capacity: int, initially_available: Set[MetaNodeStop], 
+                     network, current_time: int, best_time: int, prev_action = Action.NO_ACTION) -> Tuple[int, List[NodeStop]]:
+    """
+    Recursive search function to find the optimal sequence of stops (pickups/drop-offs) 
+    while considering capacity and time constraints.
+
+    Args:
+        initial_location (int): The current location of the vehicle.
+        residual_capacity (int): Remaining vehicle capacity.
+        initially_available (Set[MetaNodeStop]): Set of available MetaNodeStops.
+        network (Network): The network object for calculating travel times.
+        current_time (int): The current simulation time.
+        best_time (int): Current best time found for the route.
+        prev_action (Action): The previous action (pickup/dropoff/no action).
+
+    Returns:
+        Tuple[int, List[NodeStop]]: Best time and the best sequence of NodeStops.
+    """
+    # Check if initially_available is a set (unsorted), then sort it.
+    if isinstance(initially_available, set):
+        # Convert the set into a sorted list
+        initially_available = sorted(initially_available)
+        
+    if not initially_available:
+        return (current_time, [])  # No more available stops
+
+    best_tail = []
+    previous = None
+
+    for m in initially_available:
+        if previous is not None and not m.node.is_pickup and previous.node.node == m.node.node:
+            continue
+        previous = m
+
+        # Calculate the time when vehicle finishing serving m
+        new_location = m.node.node
+        if initial_location is not None:
+            arrival_time = current_time + network.get_time(initial_location, new_location) # arrivel_time is the time that the vehicle starts to serve the current node
+        else:
+            arrival_time = current_time
+
+        if prev_action == Action.DROPOFF and (m.node.is_pickup or initial_location != new_location): # Pickup and dropoff at the same station
+            arrival_time += glo.DWELL_ALIGHT # Add dropoff dwell time
+        elif prev_action == Action.PICKUP and (not m.node.is_pickup or initial_location != new_location):
+            arrival_time += glo.DWELL_PICKUP # Add pickup dwell time
+
+        if m.node.is_pickup and m.node.r.entry_time > arrival_time:
+            arrival_time = m.node.r.entry_time
+
+        # Check optimality
+        if best_time != -1 and arrival_time >= best_time:
+            continue
+
+        new_residual_capacity = residual_capacity
+        if m.node.is_pickup:
+            new_residual_capacity -= 1
+        else:
+            new_residual_capacity += 1
+
+        if new_residual_capacity < 0:
+            continue
+        
+        # Check time window constraint
+        if m.node.is_pickup and arrival_time > m.node.r.latest_boarding:
+            continue
+        if get_alight_deadline(m.node.r) < arrival_time:
+            continue
+        
+        # Remaining nodes to serve
+        remaining_nodes = set(initially_available) - {m}
+        for newnode in m.unlocks:
+            remaining_nodes.add(newnode)
+
+        # Check subsequent reachability
+        basic_reachability = all(
+            arrival_time + network.get_time(new_location, x.node.node) <=
+            (x.node.r.latest_boarding if x.node.is_pickup else x.node.r.latest_alighting)
+            for x in remaining_nodes
+        )
+
+        if not basic_reachability:
+            continue
+        
+        # Update action for next node visit
+        this_action = Action.PICKUP if m.node.is_pickup else Action.DROPOFF
+        (tail_time, tail_stops) = recursive_search_novehicle(new_location, new_residual_capacity, remaining_nodes, network, arrival_time, best_time, this_action)
+
+        # Check feasibility of subsequent trip
+        if tail_time == -1:
+            continue
+
+        if best_time == -1 or tail_time < best_time:
+            best_time = tail_time
+            best_tail = tail_stops
+            best_tail.append(m.node) # First visit node last
+
+    return (best_time, best_tail)
+
+def travel_novehicle(requests: List['Request'], network, current_time: int) -> Tuple[int, List[NodeStop]]:
+    """
+    Optimizes a vehicle's route for requests.
+
+    Args:
+        requests (List[Request]): List of new requests.
+        network (Network): The network object for calculating travel times.
+        current_time (int): The current simulation time.
+
+    Returns:
+        Tuple[int, List[NodeStop]]: The optimized travel cost and list of NodeStops.
+    """
+    nodes = []
+    meta_nodes = [] # Pickup nodes unlock dropoff nodes to ensure the pickup occuring before dropoff/preceding constraints for a route
+    initially_available = set() # Stops that are immediately available for the vehicle to visit in the next step
+
+    # Add stop nodes for new requests
+    for r in requests:
+        nodes.append(NodeStop(r, True, r.origin))  # Pickup
+        nodes.append(NodeStop(r, False, r.destination))  # Dropoff
+        meta_nodes.append(MetaNodeStop(nodes[-1], []))
+        meta_nodes.append(MetaNodeStop(nodes[-2], [meta_nodes[-1]]))
+        initially_available.add(meta_nodes[-1])
+
+    # Call the recursive cost function to compute the optimal route
+    call_time = current_time
+    start_node = None
+    if glo.CTSP_OBJECTIVE == "CTSP_VTT" or glo.CTSP_OBJECTIVE == "CTSP_DELAY":
+        optimal = recursive_search_novehicle(start_node, glo.CARSIZE,
+                                   initially_available, network, call_time, -1)
+    else:
+        raise RuntimeError(f"{glo.CTSP_OBJECTIVE} is not a valid CTSP objective")
+
+    return format_path(optimal, current_time)
+
 def recursive_search(initial_location: int, residual_capacity: int, initially_available: Set[MetaNodeStop], 
                      network, current_time: int, best_time: int, prev_action = Action.NO_ACTION, trigger='STANDARD') -> Tuple[int, List[NodeStop]]:
     """

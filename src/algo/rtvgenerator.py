@@ -151,7 +151,6 @@ def make_rtvgraph(wrap_data):
     for i in range(start, end):
         start_time = time.perf_counter()
         timeout = False
-
         # Select current vehicle and make trip list up to size k.
         vehicle = vehicles[i]
         rounds = []
@@ -201,7 +200,7 @@ def make_rtvgraph(wrap_data):
             for idx1, trip1 in enumerate(rounds[k - 1]):
                 for idx2 in range(idx1 + 1, len(rounds[k - 1])):
                     # Timeout check
-                    if glo.RTV_TIMELIMIT and (time.perf_counter() - start_time) > glo.RTV_TIMELIMIT:
+                    if glo.RTV_TIMELIMIT and (time.perf_counter() - start_time) > glo.RTV_TIMELIMIT/glo.VEHICLE_LIMIT:
                         timeout = True
                         break
 
@@ -262,6 +261,7 @@ def make_rtvgraph(wrap_data):
                 if timeout:
                     break
             rounds.append(new_round)
+            # print(len(new_round), end=" ")
 
         # Compile potential trip list
         potential_trips = [trip for round_trips in rounds for trip in round_trips]

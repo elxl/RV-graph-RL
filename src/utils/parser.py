@@ -62,6 +62,8 @@ def initialize():
     parser.add_argument('--ML', type=int, default=0, help="Whether to use feasibility prediction model.")
     parser.add_argument('--MODEL_PATH', type=str, default=glo.MODEL_PATH, help="Path to the feasibility prediction model.")
     parser.add_argument('--THREADS', type=int, default=1, help="Number of threads.")
+    parser.add_argument('--PARTITION', type=str, default=glo.PARTITION, help="Partition mode.")
+    parser.add_argument('--GAP', type=float, default=glo.GAP, help="Optimality gap.")
 
     # Parse the arguments
     args = parser.parse_args()
@@ -97,5 +99,7 @@ def initialize():
     glo.PRUNING_RR_K = args.PRUNING_RR_K
     glo.PRUNING_RV_K = args.PRUNING_RV_K
     glo.MODEL_PATH = args.MODEL_PATH
+    glo.GAP = args.GAP
+    glo.PARTITION = args.PARTITION
 
     return args

@@ -9,7 +9,7 @@ PRUNING_RR_K = 0 # Maximum number of rr edges for each request. Rank by detour f
 ALPHA = 0.5
 RTV_TIMELIMIT = 0 # Time limit for generating RTV graph. Set 0 to indicate no limit.
 MAX_NEW = 8 # Maximum new pickup and dropoff stops.
-RANDOM = 0.5 # Random drop rate for cliques
+RANDOM = 0.3 # Random drop rate for cliques
 
 # Trip generation/feasibility check
 LP_LIMITVALUE = 8 # LP_LIMITVALUE/2 is the limit of the number of new requests that is allowed to be assigned to a vehicle at one time
@@ -43,6 +43,9 @@ ILP_TIMEOUT = 0  # Time limit for ILP optimization. Set 0 to indicate no limit.
 # Simulation
 LAST_MINUTE_SERVICE = False # If waiting at stop as long as possible
 
+# Parition
+PARTITION = 'None' # [None, Modularity]
+GAP = 0.05
 
 # File directories
 RESULTS_DIRECTORY = './results'
