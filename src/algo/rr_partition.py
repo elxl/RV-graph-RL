@@ -2,6 +2,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 import math, copy
 import time, os
 import threading
+import pymetis
 import numpy as np
 import networkx as nx
 from src.algo.insersion import travel
@@ -13,6 +14,7 @@ from src.env.struct.Trip import Trip, NodeStop
 from operator import itemgetter
 from gurobipy import Model, GRB, quicksum
 from networkx.algorithms.community import greedy_modularity_communities
+from sklearn.cluster import SpectralClustering
 
 import src.utils.global_var as glo
 # Create locks for each shared resource
@@ -120,53 +122,6 @@ def auto_thread(job_count, function, arguments, thread_count, task):
     """Distribute jobs across threads to build graphs."""
     jobs_per_thread = job_count / float(thread_count)
 
-    # futures = []
-    # with ProcessPoolExecutor(max_workers=thread_count) as executor:
-    #     for i in range(thread_count):
-    #         start = math.ceil(i * jobs_per_thread)
-    #         end = math.ceil((i + 1) * jobs_per_thread)
-    #         if end > job_count:
-    #             end = job_count  # Ensure the range doesn't exceed total job count
-
-    #         if task == 'RR':
-    #             network = arguments['network']
-    #             requests = arguments['requests']
-    #             current_time = arguments['current_time']
-    #             data = {
-    #                 'start': start,
-    #                 'end': end,
-    #                 'network': network,
-    #                 'requests': requests,
-    #                 'current_time': current_time,
-    #             }
-
-    #         elif task == 'TRIP':
-    #             graph_list = arguments['graph_list']
-    #             network = arguments['network']
-    #             current_time = arguments['current_time']
-    #             data = {
-    #                 'start': start,
-    #                 'end': end,
-    #                 'graph_list': graph_list,
-    #                 'network': network,
-    #                 'current_time': current_time,
-    #             }
-    #         else:
-    #             raise ValueError("Invalid task type. Use 'RR' or 'TRIP'.")
-
-    #         futures.append(executor.submit(function, data))
-
-
-    #     if task == 'RR':
-    #         graphs = [f.result() for f in futures]
-    #         rr_graph = nx.compose_all(graphs)
-    #         return rr_graph
-        
-    #     elif task == 'TRIP':
-    #         trips = []
-    #         for future in futures:
-    #             trips.extend(future.result())
-    #         return trips
     with ThreadPoolExecutor(max_workers=thread_count) as executor:
         for i in range(thread_count):
             start = math.ceil(i * jobs_per_thread)
@@ -244,8 +199,33 @@ def rr_partition(requests, current_time, network, mode='None', threads=1):
     elif mode == 'Modularity':
         communities = greedy_modularity_communities(rr_graph, weight='weight')
         sizes, rr_graph_lists = zip(*[(len(community), copy.deepcopy(rr_graph.subgraph(community))) for community in communities])
+    elif mode == 'Spectral':
+        # Spectral clustering
+        adjacency_matrix = nx.to_numpy_array(rr_graph)
+        nodelist = np.array(rr_graph.nodes)
+        clustering = SpectralClustering(n_clusters=glo.PARTITION_K, affinity='precomputed', assign_labels='discretize', random_state=0)
+        labels = clustering.fit_predict(adjacency_matrix)
+        rr_graph_lists = [copy.deepcopy(rr_graph.subgraph(nodelist[np.where(labels == i)[0]])) for i in range(glo.PARTITION_K)]
+        sizes = [len(graph.nodes) for graph in rr_graph_lists]
+    elif mode == 'METIS':
+        # Map node labels
+        nodelist = np.array(rr_graph.nodes)
+        node_to_idx = {node: idx for idx, node in enumerate(rr_graph.nodes())}
+
+        # Build adjacency
+        adjacency = []
+        for node in rr_graph.nodes():
+            neighbors = [node_to_idx[neighbor] for neighbor in rr_graph.neighbors(node)]
+            adjacency.append(neighbors)
+
+        # Partition into 3 parts
+        _, labels = pymetis.part_graph(glo.PARTITION_K, adjacency=adjacency)
+        labels = np.array(labels)
+
+        rr_graph_lists = [copy.deepcopy(rr_graph.subgraph(nodelist[np.where(labels == i)[0]])) for i in range(glo.PARTITION_K)]
+        sizes = [len(graph.nodes) for graph in rr_graph_lists]
     else:
-        raise ValueError("Invalid partition mode.")
+        raise ValueError(f"Invalid partition mode {mode}.")
 
     return rr_graph_lists, sizes
 
@@ -371,19 +351,21 @@ def tripgenerator_parallel(rr_graph_list, network, current_time, threads=1):
     """
     trip_list = []
     arguments = {
+        'start': 0,
+        'end': len(rr_graph_list),
         'trip_list': trip_list,
         'graph_list': rr_graph_list,
         'network': network,
         'current_time': current_time
     }
-    auto_thread(
-        job_count=len(rr_graph_list),
-        function=tripgenerator,
-        arguments=arguments,
-        thread_count=threads,
-        task='TRIP'
-    )
-    # trip_list = tripgenerator(arguments)
+    # auto_thread(
+    #     job_count=len(rr_graph_list),
+    #     function=tripgenerator,
+    #     arguments=arguments,
+    #     thread_count=threads,
+    #     task='TRIP'
+    # )
+    tripgenerator(arguments)
     return trip_list
 
 def vehicle_assignment(trip_list, v_num):
@@ -392,6 +374,10 @@ def vehicle_assignment(trip_list, v_num):
     Args:
         trip_list (List[Trip]): List of feasible trips.
         v_num (int): Number of vehicles available.
+    Returns:
+        assignment (np.ndarray): Vehicle assignment matrix.
+        served (int): Number of served requests.
+        obj (float): Objective value of the optimization model.
     """
     requests = list({request.id for trip in trip_list for request in trip.requests})
     trip_to_request = np.zeros((len(trip_list), len(requests)), dtype=bool)
@@ -449,6 +435,6 @@ def vehicle_assignment(trip_list, v_num):
         for r in range(len(requests)):
             if y[r].x > 0.5:
                 served += 1
-        return assignment, served
+        return assignment, served, model.ObjVal
     else:
         raise RuntimeError("Optimization model did not find an optimal solution.")

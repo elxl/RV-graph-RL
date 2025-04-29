@@ -45,7 +45,8 @@ LAST_MINUTE_SERVICE = False # If waiting at stop as long as possible
 
 # Parition
 PARTITION = 'None' # [None, Modularity]
-GAP = 0.05
+PARTITION_K = 5 # Number of partitions
+GAP = 0.05 # Optimality gap for assignment ILP
 
 # File directories
 RESULTS_DIRECTORY = './results'
