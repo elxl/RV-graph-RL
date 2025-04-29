@@ -94,6 +94,8 @@ if __name__ == "__main__":
         results.write(f"PARTITION {args.PARTITION}\n")
         if args.PARTITION == 'METIS':
             results.write(f"PARTITION_K {args.PARTITION_K}\n")
+        if args.PARTITION != 'None':
+            results.write(f"{Fore.WHITE}Partitioned into {len(rr_graph_list)} subgraphs. Min size {min(sizes)}. Max size {max(sizes)}. Variance {np.var(sizes)}. {Style.RESET_ALL} \n")
 
         # Write results
         results.write(f"***********RESULT**********\n")
