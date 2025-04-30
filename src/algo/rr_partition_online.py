@@ -12,6 +12,7 @@ from src.env.struct.Network import Network
 from src.algo.insersion import travel_timed
 from src.algo.rtvgenerator import previoustrip, delay_all
 from src.env.struct.Trip import Trip, NodeStop
+from src.utils.helper import rr_weight
 from operator import itemgetter
 from gurobipy import Model, GRB, quicksum
 from networkx.algorithms.community import greedy_modularity_communities
@@ -20,59 +21,6 @@ from sklearn.cluster import SpectralClustering
 import src.utils.global_var as glo
 # Create locks for each shared resource
 lock = threading.Lock()
-
-def rr_weight(req1, req2, network):
-    """Calculate the weight of the edge between two requests.
-
-    Args:
-        request1 (Request): The first request.
-        request2 (Request): The second request.
-        network (Network): The network object.
-
-    Returns:
-        float: The weight of the edge between the two requests.
-    """
-    # Calculate the weight
-    o1, o2 = req1.origin, req2.origin
-    d1, d2 = req1.destination, req2.destination
-    t_base = network.get_time(o1, d1) + network.get_time(o2, d2)
-
-    # Calculate detour for difference scenarios
-    n = 0
-    detour = 0
-    scenarios = [[o1, o2, d2, d1],
-                 [o1, o2, d1, d2],
-                 [o1, d1, o2, d2],
-                 [o2, o1, d1, d2],
-                 [o2, o1, d2, d1],
-                [o2, d2, o1, d1],]
-    latest_visit = {o1: req1.latest_boarding, o2: req2.latest_boarding, 
-                    d1: req1.latest_alighting, d2: req2.latest_alighting}
-    earliest_depart = {o1: req1.entry_time + glo.DWELL_PICKUP, o2: req2.entry_time + glo.DWELL_PICKUP,
-                       d1: 0, d2: 0}
-    dwell_time = {o1: glo.DWELL_PICKUP, o2: glo.DWELL_PICKUP, 
-                  d1: glo.DWELL_ALIGHT, d2: glo.DWELL_ALIGHT}
-    for scenario in scenarios:
-        current_time = 0
-        feasible = True
-        for i, stop in enumerate(scenario):
-            if i != 0:
-                current_time += network.get_time(scenario[i-1], stop)
-                if current_time > latest_visit[stop]:
-                    feasible = False
-                    break
-                else:
-                    current_time = max(current_time + dwell_time[stop], earliest_depart[stop])
-        if feasible:
-            n += 1
-            detour += current_time/t_base
-    
-    if n == 0:
-        return -1
-    # Calculate the average detour
-    weight = (6/n) * (detour/n)
-
-    return weight
 
 def make_rrgraph(rr_data):
     """Build RR edge on RR graph using NetworkX with weights.
@@ -171,57 +119,6 @@ def auto_thread(job_count, function, arguments, thread_count, task):
     """Distribute jobs across threads to build graphs."""
     jobs_per_thread = job_count / float(thread_count)
 
-    # futures = []
-    # with ProcessPoolExecutor(max_workers=thread_count) as executor:
-    #     for i in range(thread_count):
-    #         start = math.ceil(i * jobs_per_thread)
-    #         end = math.ceil((i + 1) * jobs_per_thread)
-    #         if end > job_count:
-    #             end = job_count  # Ensure the range doesn't exceed total job count
-
-    #         if task == 'RR':
-    #             rr_graph = arguments['rr_graph']
-    #             network = arguments['network']
-    #             requests = arguments['requests']
-    #             current_time = arguments['current_time']
-    #             data = {
-    #                 'start': start,
-    #                 'end': end,
-    #                 'rr_graph': rr_graph,
-    #                 'network': network,
-    #                 'requests': requests,
-    #                 'current_time': current_time,
-    #             }
-
-    #         elif task == 'TRIP':
-    #             trip_list = arguments['trip_list']
-    #             graph_list = arguments['graph_list']
-    #             network = arguments['network']
-    #             current_time = arguments['current_time']
-    #             data = {
-    #                 'start': start,
-    #                 'end': end,
-    #                 'trip_list': trip_list,
-    #                 'graph_list': graph_list,
-    #                 'network': network,
-    #                 'current_time': current_time,
-    #             }
-    #         else:
-    #             raise ValueError("Invalid task type. Use 'RR' or 'TRIP'.")
-
-    #         futures.append(executor.submit(function, data))
-
-
-    #     if task == 'RR':
-    #         graphs = [f.result() for f in futures]
-    #         rr_graph = nx.compose_all(graphs)
-    #         return rr_graph
-        
-    #     elif task == 'TRIP':
-    #         trips = []
-    #         for future in futures:
-    #             trips.extend(future.result())
-    #         return trips
     with ThreadPoolExecutor(max_workers=thread_count) as executor:
         for i in range(thread_count):
             start = math.ceil(i * jobs_per_thread)
@@ -357,13 +254,17 @@ def tripgenerator(wrap_data):
             rounds = []
             previous_assigned_passengers = set(vehicle.pending_requests)
 
-            # Generate trip for onboard passengers with no new assignment (deliever onboard passengers)
-            baseline = Trip()
-            cost,path = travel_timed(vehicle, [], network, current_time, start_time, 0, 'STANDARD')
-            if glo.CTSP_OBJECTIVE == "CTSP_DELAY":
-                cost = delay_all(vehicle,path,network,current_time)
-            baseline.cost, baseline.order_record = cost,path
-            rounds.append([baseline])
+            # Generate trip for onboard passengers with no new assignment (deliever onboard passengers).
+            # If vehicle is already checked, skip it. Onboard trip is already included in trip_list.
+            if vehicle not in trip_list:
+                baseline = Trip()
+                cost,path = travel_timed(vehicle, [], network, current_time, start_time, 0, 'STANDARD')
+                if glo.CTSP_OBJECTIVE == "CTSP_DELAY":
+                    cost = delay_all(vehicle,path,network,current_time)
+                baseline.cost, baseline.order_record = cost,path
+                rounds.append([baseline])
+            else:
+                rounds.append([])
 
             # Get initial pairing of requests connected to the vehicle in rv_graph
             with lock:
@@ -461,7 +362,10 @@ def tripgenerator(wrap_data):
                     potential_trips.append(previous_trip)
             # Update trip list
             with lock:
-                trip_list[vehicle] = potential_trips # trip_list: {Vehicle:[Trip]}
+                if vehicle not in trip_list:
+                    trip_list[vehicle] = potential_trips # trip_list: {Vehicle:[Trip]}
+                else:
+                    trip_list[vehicle].extend(potential_trips)
 
     print(f"[{time.strftime('%H:%M:%S.%f')[:-2]}][Finish thread {threading.current_thread().name}] Processing graphs {start} to {end}")
 

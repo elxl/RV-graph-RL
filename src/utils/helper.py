@@ -173,3 +173,56 @@ def get_new_requests(requests, current_time):
         r for r in requests
         if r.entry_time <= current_time < r.entry_time + glo.INTERVAL
     ]
+
+def rr_weight(req1, req2, network):
+    """Calculate the weight of the edge between two requests.
+
+    Args:
+        request1 (Request): The first request.
+        request2 (Request): The second request.
+        network (Network): The network object.
+
+    Returns:
+        float: The weight of the edge between the two requests.
+    """
+    # Calculate the weight
+    o1, o2 = req1.origin, req2.origin
+    d1, d2 = req1.destination, req2.destination
+    t_base = network.get_time(o1, d1) + network.get_time(o2, d2)
+
+    # Calculate detour for difference scenarios
+    n = 0
+    detour = 0
+    scenarios = [[o1, o2, d2, d1],
+                 [o1, o2, d1, d2],
+                 [o1, d1, o2, d2],
+                 [o2, o1, d1, d2],
+                 [o2, o1, d2, d1],
+                [o2, d2, o1, d1],]
+    latest_visit = {o1: req1.latest_boarding, o2: req2.latest_boarding, 
+                    d1: req1.latest_alighting, d2: req2.latest_alighting}
+    earliest_depart = {o1: req1.entry_time + glo.DWELL_PICKUP, o2: req2.entry_time + glo.DWELL_PICKUP,
+                       d1: 0, d2: 0}
+    dwell_time = {o1: glo.DWELL_PICKUP, o2: glo.DWELL_PICKUP, 
+                  d1: glo.DWELL_ALIGHT, d2: glo.DWELL_ALIGHT}
+    for scenario in scenarios:
+        current_time = 0
+        feasible = True
+        for i, stop in enumerate(scenario):
+            if i != 0:
+                current_time += network.get_time(scenario[i-1], stop)
+                if current_time > latest_visit[stop]:
+                    feasible = False
+                    break
+                else:
+                    current_time = max(current_time + dwell_time[stop], earliest_depart[stop])
+        if feasible:
+            n += 1
+            detour += current_time/(t_base+1e-5)
+    
+    if n == 0:
+        return -1
+    # Calculate the average detour
+    weight = (6/n) * (detour/n)
+
+    return weight

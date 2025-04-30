@@ -11,6 +11,7 @@ from src.env.struct.Request import Request
 from src.env.struct.Network import Network
 from src.algo.insersion import travel_novehicle
 from src.env.struct.Trip import Trip, NodeStop
+from src.utils.helper import rr_weight
 from operator import itemgetter
 from gurobipy import Model, GRB, quicksum
 from networkx.algorithms.community import greedy_modularity_communities
@@ -20,58 +21,6 @@ import src.utils.global_var as glo
 # Create locks for each shared resource
 lock = threading.Lock()
 
-def rr_weight(req1, req2, network):
-    """Calculate the weight of the edge between two requests.
-
-    Args:
-        request1 (Request): The first request.
-        request2 (Request): The second request.
-        network (Network): The network object.
-
-    Returns:
-        float: The weight of the edge between the two requests.
-    """
-    # Calculate the weight
-    o1, o2 = req1.origin, req2.origin
-    d1, d2 = req1.destination, req2.destination
-    t_base = network.get_time(o1, d1) + network.get_time(o2, d2)
-
-    # Calculate detour for difference scenarios
-    n = 0
-    detour = 0
-    scenarios = [[o1, o2, d2, d1],
-                 [o1, o2, d1, d2],
-                 [o1, d1, o2, d2],
-                 [o2, o1, d1, d2],
-                 [o2, o1, d2, d1],
-                [o2, d2, o1, d1],]
-    latest_visit = {o1: req1.latest_boarding, o2: req2.latest_boarding, 
-                    d1: req1.latest_alighting, d2: req2.latest_alighting}
-    earliest_depart = {o1: req1.entry_time + glo.DWELL_PICKUP, o2: req2.entry_time + glo.DWELL_PICKUP,
-                       d1: 0, d2: 0}
-    dwell_time = {o1: glo.DWELL_PICKUP, o2: glo.DWELL_PICKUP, 
-                  d1: glo.DWELL_ALIGHT, d2: glo.DWELL_ALIGHT}
-    for scenario in scenarios:
-        current_time = 0
-        feasible = True
-        for i, stop in enumerate(scenario):
-            if i != 0:
-                current_time += network.get_time(scenario[i-1], stop)
-                if current_time > latest_visit[stop]:
-                    feasible = False
-                    break
-                else:
-                    current_time = max(current_time + dwell_time[stop], earliest_depart[stop])
-        if feasible:
-            n += 1
-            detour += current_time/t_base
-    
-    if n == 0:
-        return -1
-    # Calculate the average detour
-    weight = (6/n) * (detour/n)
-
-    return weight
 
 def make_rrgraph(rr_data):
     """Build RR edge on RR graph using NetworkX with weights.
@@ -116,6 +65,7 @@ def make_rrgraph(rr_data):
             with lock:
                 rr_graph.add_node(f'r{request2.id}', request=request2, label='r')  # Add request node with label "r"
                 rr_graph.add_edge(f'r{request1.id}', f'r{request2.id}', weight=weight)  # Add rr edge with path cost
+    return rr_graph
 
 # Function to handle thread distribution
 def auto_thread(job_count, function, arguments, thread_count, task):
@@ -358,14 +308,14 @@ def tripgenerator_parallel(rr_graph_list, network, current_time, threads=1):
         'network': network,
         'current_time': current_time
     }
-    # auto_thread(
-    #     job_count=len(rr_graph_list),
-    #     function=tripgenerator,
-    #     arguments=arguments,
-    #     thread_count=threads,
-    #     task='TRIP'
-    # )
-    tripgenerator(arguments)
+    auto_thread(
+        job_count=len(rr_graph_list),
+        function=tripgenerator,
+        arguments=arguments,
+        thread_count=threads,
+        task='TRIP'
+    )
+    # tripgenerator(arguments)
     return trip_list
 
 def vehicle_assignment(trip_list, v_num):
@@ -428,13 +378,16 @@ def vehicle_assignment(trip_list, v_num):
         print(f"Objective value: {model.ObjVal} \n Optimality gap: {model.MIPGap:.2f} \n Runtime {model.Runtime:.2f} seconds")
         assignment = np.zeros((v_num, 3), dtype=float)
         served = 0
+        assigned = 0
         for v in range(v_num):
             for t, trip in enumerate(trip_list):
                 if x[v, t].x > 0.5:  # Vehicle v is assigned to trip t
                     assignment[v,:] = [1, trip.cost, len(trip.requests)]
+                    assigned += 1
         for r in range(len(requests)):
             if y[r].x > 0.5:
                 served += 1
+        print(f"Assigned {assigned} vehicles to trips.")
         return assignment, served, model.ObjVal
     else:
         raise RuntimeError("Optimization model did not find an optimal solution.")

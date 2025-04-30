@@ -44,10 +44,10 @@ if __name__ == "__main__":
     print(f"{Fore.YELLOW}********Partition start at {datetime.datetime.now().time()}********{Style.RESET_ALL}")
     rr_graph_list, sizes = rr_partition(requests, current_time, network, mode=args.PARTITION, threads=args.THREADS)
     if args.PARTITION != 'None':
-        print(f"{Fore.WHITE}Partitioned into {len(rr_graph_list)} subgraphs. Min size {min(sizes)}. Max size {max(sizes)}. Variance {np.var(sizes)}. {Style.RESET_ALL}")
+        print(f"{Fore.WHITE}Partitioned into {len(rr_graph_list)} subgraphs. Min size {min(sizes)}. Max size {max(sizes)}. All {sum(sizes)}. Variance {np.var(sizes)}. {Style.RESET_ALL}")
         print(f"{Fore.GREEN}Partition finished at {datetime.datetime.now().time()}!{Style.RESET_ALL}")
     else:
-        print(f"{Fore.WHITE}No partition. {Style.RESET_ALL}")
+        print(f"{Fore.WHITE}No partition. Graph size {rr_graph_list[0].number_of_nodes()}.{Style.RESET_ALL}")
         print(f"{Fore.GREEN}Building RR graph finished at {datetime.datetime.now().time()}!{Style.RESET_ALL}")
 
     # Get trips

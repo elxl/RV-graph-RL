@@ -304,3 +304,12 @@ class Network:
     #     self.shortest_paths[(origin, destination)] = path
       
     #     return path
+    def __hash__(self):
+        return hash((self.time_matrix, self.distance_matrix, self.adjacency_list, self.dwell_pickup, self.dwell_alight))
+    
+    def __eq__(self, other):
+        return (self.time_matrix == other.time_matrix and
+                self.distance_matrix == other.distance_matrix and
+                self.adjacency_list == other.adjacency_list and
+                self.dwell_pickup == other.dwell_pickup and
+                self.dwell_alight == other.dwell_alight)

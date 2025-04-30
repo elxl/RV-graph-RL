@@ -26,9 +26,9 @@ class NodeStop:
         Returns:
             bool: True if the current NodeStop comes before the other, False otherwise.
         """
-        if self.r < other.r:
+        if self.r.id < other.r.id:
             return True
-        elif self.r == other.r and self.is_pickup < other.is_pickup:
+        elif self.r.id == other.r.id and self.is_pickup < other.is_pickup:
             return True
         else:
             return False
@@ -44,10 +44,14 @@ class NodeStop:
         Returns:
             bool: True if the current NodeStop is the same as the other, False otherwise.
         """
-        if self.r == other.r and self.is_pickup == other.is_pickup:
+        if self.r.id == other.r.id and self.is_pickup == other.is_pickup:
             return True
         else:
             return False
+    
+    def __hash__(self):
+
+        return hash((self.r.id, self.is_pickup, self.node))
         
 class Trip:
     """
@@ -59,3 +63,14 @@ class Trip:
         self.use_memory = use_memory          # Memory usage flag
         self.order_record = order_record if order_record else []  # Order of nodes (NodeStop instances)
         self.requests = requests if requests else []  # List of Request objects
+
+    def __eq__(self, value):
+        if set(self.order_record) == set(value.order_record):
+            return True
+        else:
+            return False
+    def __lt__(self, value):
+        if self.cost < value.cost:
+            return True
+        else:
+            return False

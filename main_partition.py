@@ -7,7 +7,7 @@ from src.utils.parser import initialize
 import src.utils.global_var as glo
 from src.env.struct.Network import Network
 from src.utils.helper import load_vehicles,load_requests,encode_time,decode_time,get_active_vehicles,get_new_requests
-from src.algo.rr_partition_process import rr_partition, tripgenerator_parallel, vehicle_assignment
+from src.algo.rr_partition import rr_partition, tripgenerator_parallel, vehicle_assignment
 
 if __name__ == "__main__":
     args = initialize()
@@ -43,8 +43,12 @@ if __name__ == "__main__":
     # Build graph and partition
     print(f"{Fore.YELLOW}********Partition start at {datetime.datetime.now().time()}********{Style.RESET_ALL}")
     rr_graph_list, sizes = rr_partition(requests, current_time, network, mode=args.PARTITION, threads=args.THREADS)
-    print(f"{Fore.WHITE}Partitioned into {len(rr_graph_list)} subgraphs. Min size {min(sizes)}. Max size {max(sizes)}. Variance {np.var(sizes)}. {Style.RESET_ALL}")
-    print(f"{Fore.GREEN}Partition finished at {datetime.datetime.now().time()}!{Style.RESET_ALL}")
+    if args.PARTITION != 'None':
+        print(f"{Fore.WHITE}Partitioned into {len(rr_graph_list)} subgraphs. Min size {min(sizes)}. Max size {max(sizes)}. All {sum(sizes)}. Variance {np.var(sizes)}. {Style.RESET_ALL}")
+        print(f"{Fore.GREEN}Partition finished at {datetime.datetime.now().time()}!{Style.RESET_ALL}")
+    else:
+        print(f"{Fore.WHITE}No partition. Graph size {rr_graph_list[0].number_of_nodes()}.{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}Building RR graph finished at {datetime.datetime.now().time()}!{Style.RESET_ALL}")
 
     # Get trips
     print(f"{Fore.YELLOW}********Trip generation start at {datetime.datetime.now().time()}********{Style.RESET_ALL}")
