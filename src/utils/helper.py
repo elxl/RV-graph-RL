@@ -6,6 +6,7 @@ from src.env.struct.Request import Request
 import src.utils.global_var as glo
 import networkx as nx
 import pandas as pd
+import numpy as np
 
 @dataclass
 class DataPoint:
@@ -223,6 +224,38 @@ def rr_weight(req1, req2, network):
     if n == 0:
         return -1
     # Calculate the average detour
-    weight = (6/n) * (detour/n)
+    weight = 1/((6/n) * (detour/n))
 
     return weight
+
+def graph_to_pymetis_inputs(G, weight_attr = 'weight', scale=100):
+    """Convert a NetworkX graph to a format suitable for PyMetis.
+
+    Args:
+        G (nx.Graph): The input graph.
+        weight_attr (str): The attribute name for edge weights.
+        scale (int): Scaling factor for weights.
+
+    Returns:
+        tuples: Tuples containing the adjacency list and the weights.
+    """
+
+    node_to_idx = {node: idx for idx, node in enumerate(G.nodes())}
+    idx_to_node = {idx: node for node, idx in node_to_idx.items()}
+
+    xadj = [0]
+    adjncy = []
+    adjwgt = []
+
+    for node in G.nodes():
+        neighbors = list(G.neighbors(node))
+
+        for neighbor in neighbors:
+            idx = node_to_idx[neighbor]
+            raw_w = G.edges[node, neighbor][weight_attr]
+            ew = max(1, int(scale * raw_w))
+            adjncy.append(idx)
+            adjwgt.append(ew)
+        xadj.append(len(adjncy))
+
+    return idx_to_node, xadj, adjncy, adjwgt

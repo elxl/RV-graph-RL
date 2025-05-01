@@ -74,3 +74,6 @@ class Trip:
             return True
         else:
             return False
+        
+    def __hash__(self):
+        return hash(tuple(self.order_record))

@@ -12,7 +12,7 @@ from src.env.struct.Network import Network
 from src.algo.insersion import travel_timed
 from src.algo.rtvgenerator import previoustrip, delay_all
 from src.env.struct.Trip import Trip, NodeStop
-from src.utils.helper import rr_weight
+from src.utils.helper import rr_weight, graph_to_pymetis_inputs
 from operator import itemgetter
 from gurobipy import Model, GRB, quicksum
 from networkx.algorithms.community import greedy_modularity_communities
@@ -29,7 +29,8 @@ def make_rrgraph(rr_data):
         rr_data (nx.graph): RR graph.
     """
 
-    rr_graph = rr_data['rr_graph']
+    # rr_graph = rr_data['rr_graph']
+    rr_graph = nx.Graph()
     start = rr_data['start']
     end = rr_data['end']
     network = rr_data['network']
@@ -65,6 +66,7 @@ def make_rrgraph(rr_data):
             with lock:
                 rr_graph.add_node(f'r{request2.id}', request=request2, label='r')  # Add request node with label "r"
                 rr_graph.add_edge(f'r{request1.id}', f'r{request2.id}', weight=weight)  # Add rr edge with path cost
+    return rr_graph
 
 def make_rvgraph(vehicles, rr_graph, network, current_time):
     """Build RV edge on RV graph using NetworkX based on rr subgraph.
@@ -219,6 +221,16 @@ def rr_partition(requests, current_time, network, mode='None', threads=1):
 
         # Partition into 3 parts
         _, labels = pymetis.part_graph(glo.PARTITION_K, adjacency=adjacency)
+        labels = np.array(labels)
+
+        rr_graph_lists = [copy.deepcopy(rr_graph.subgraph(nodelist[np.where(labels == i)[0]])) for i in range(glo.PARTITION_K)]
+        sizes = [len(graph.nodes) for graph in rr_graph_lists]        
+    elif mode == 'METIS_W':
+        idx_to_node, xadj, adjncy, adjwgt = graph_to_pymetis_inputs(rr_graph, weight_attr='weight')
+        nodelist = np.array([idx_to_node[i] for i in range(len(idx_to_node))])
+
+        # Partition
+        _, labels = pymetis.part_graph(glo.PARTITION_K, xadj=xadj, adjncy=adjncy, eweights=adjwgt)
         labels = np.array(labels)
 
         rr_graph_lists = [copy.deepcopy(rr_graph.subgraph(nodelist[np.where(labels == i)[0]])) for i in range(glo.PARTITION_K)]
