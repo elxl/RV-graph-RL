@@ -1,17 +1,14 @@
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-import math, copy, random
-import time, os
+from concurrent.futures import ThreadPoolExecutor
+import math, copy
+import time
 import threading
 import pymetis
 import numpy as np
 import networkx as nx
 from src.algo.insersion import travel
-from src.env.struct.Vehicle import Vehicle
-from src.env.struct.Request import Request
-from src.env.struct.Network import Network
 from src.algo.insersion import travel_timed
 from src.algo.rtvgenerator import previoustrip, delay_all
-from src.env.struct.Trip import Trip, NodeStop
+from src.env.struct.Trip import Trip
 from src.utils.helper import rr_weight, graph_to_pymetis_inputs
 from operator import itemgetter
 from gurobipy import Model, GRB, quicksum

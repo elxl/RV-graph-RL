@@ -1,5 +1,5 @@
 # torch==2.4.1
-gurobipy==12.0.0
+gurobipy==12.0.0 # Adjust this version if you have a different Gurobi version license
 matplotlib==3.10.0
 matplotlib-inline
 networkx

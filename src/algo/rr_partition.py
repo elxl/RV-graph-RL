@@ -1,18 +1,13 @@
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 import math, copy
-import time, os
+import time
 import threading
 import pymetis
 import numpy as np
 import networkx as nx
-from src.algo.insersion import travel
-from src.env.struct.Vehicle import Vehicle
-from src.env.struct.Request import Request
-from src.env.struct.Network import Network
 from src.algo.insersion import travel_novehicle
 from src.env.struct.Trip import Trip, NodeStop
 from src.utils.helper import rr_weight
-from operator import itemgetter
 from gurobipy import Model, GRB, quicksum
 from networkx.algorithms.community import greedy_modularity_communities
 from sklearn.cluster import SpectralClustering
