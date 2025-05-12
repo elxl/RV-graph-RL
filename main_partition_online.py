@@ -53,6 +53,7 @@ if __name__ == "__main__":
     # Get trips
     print(f"{Fore.YELLOW}********Trip generation start at {datetime.datetime.now().time()}********{Style.RESET_ALL}")
     trips = tripgenerator_parallel(rr_graph_list, vehicles, network, current_time, threads=args.THREADS)
+    trips = {vehicle: list(set(trips)) for vehicle, trips in trips.items()}
     total_trips = sum(len(trips) for trips in trips.values())
     print(f"{Fore.WHITE}{total_trips} trips generated.{Style.RESET_ALL}")
     print(f"{Fore.GREEN}Trip generation finished at {datetime.datetime.now().time()}!{Style.RESET_ALL}")

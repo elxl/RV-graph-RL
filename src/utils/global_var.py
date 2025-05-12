@@ -8,7 +8,7 @@ PRUNING_RR_K = 0 # Maximum number of rr edges for each request. Rank by detour f
 # RTV generation
 ALPHA = 0.5
 RTV_TIMELIMIT = 0 # Time limit for generating RTV graph. Set 0 to indicate no limit.
-MAX_NEW = 8 # Maximum new pickup and dropoff stops.
+MAX_NEW = 20 # Maximum new pickup and dropoff stops.
 RANDOM = 0.3 # Random drop rate for cliques
 
 # Trip generation/feasibility check
@@ -23,8 +23,8 @@ MAX_WAITING = 300 # Maximum waiting time before pickup / 300
  # FIX_PREFIX: Consider previous assignement. If new request exceeds LP_LIMITVALUE/2, return infeasible.
  # Otherwise, follow the order of the previous assignment and reoptimize LP_LIMITVAUE stops.
  # FULL: Reoptimize all stops.
-CTSP = "FIX_ONBOARD"
-CARSIZE = 4
+CTSP = "FULL" #"FIX_ONBOARD"
+CARSIZE = 10
 INITIAL_TIME = "00:00:00"
 FINAL_TIME = "01:00:00"
 VEHICLE_LIMIT = 1000
@@ -45,7 +45,7 @@ LAST_MINUTE_SERVICE = False # If waiting at stop as long as possible
 
 # Parition
 PARTITION = 'None' # [None, Modularity]
-PARTITION_K = 5 # Number of partitions
+PARTITION_K = 4 # Number of partitions
 GAP = 0.05 # Optimality gap for assignment ILP
 
 # File directories

@@ -175,7 +175,7 @@ def get_new_requests(requests, current_time):
         if r.entry_time <= current_time < r.entry_time + glo.INTERVAL
     ]
 
-def rr_weight(req1, req2, network):
+def rr_weight(req1, req2, network, current_time):
     """Calculate the weight of the edge between two requests.
 
     Args:
@@ -207,19 +207,19 @@ def rr_weight(req1, req2, network):
     dwell_time = {o1: glo.DWELL_PICKUP, o2: glo.DWELL_PICKUP, 
                   d1: glo.DWELL_ALIGHT, d2: glo.DWELL_ALIGHT}
     for scenario in scenarios:
-        current_time = 0
+        temp_time = current_time
         feasible = True
         for i, stop in enumerate(scenario):
             if i != 0:
-                current_time += network.get_time(scenario[i-1], stop)
-                if current_time > latest_visit[stop]:
+                temp_time += network.get_time(scenario[i-1], stop)
+                if temp_time > latest_visit[stop]:
                     feasible = False
                     break
                 else:
-                    current_time = max(current_time + dwell_time[stop], earliest_depart[stop])
+                    temp_time = max(temp_time + dwell_time[stop], earliest_depart[stop])
         if feasible:
             n += 1
-            detour += current_time/(t_base+1e-5)
+            detour += temp_time/(t_base+1e-5)
     
     if n == 0:
         return -1

@@ -31,6 +31,11 @@ with open(results_file, "w") as results:
     results.write(f"INITIAL_TIME {glo.INITIAL_TIME}\n")
     results.write(f"FINAL_TIME {glo.FINAL_TIME}\n")
 
+    # Write partition information
+    results.write(f"PARTITION {args.PARTITION}\n")
+    if glo.PARTITION.startswith('METIS'):
+        results.write(f"PARTITION_K {args.PARTITION_K}\n")
+
     # Write ALGORITHM information
     results.write("ALGORITHM ")
     if glo.ALGORITHM == "ILP_FULL":
@@ -143,9 +148,7 @@ while current_time < final_time - glo.INTERVAL:
     #########################################
     print(f"{Fore.YELLOW}Starting trip assignement...{Style.RESET_ALL}")
     # assigned_trips, feasible, infeasible, obj, obj_ml, obj_navie = ilp_assignement_full(active_vehicles,active_requests,current_time,network,args.ML,args.THREADS)
-    assigned_trips, feasible, infeasible, obj = ilp_assignement_full(active_vehicles,active_requests,current_time,network,args.ML,args.THREADS)
-    feasibility['feasible'][current_time] = feasible
-    feasibility['infeasible'][current_time] = infeasible
+    assigned_trips, obj = ilp_assignement_full(active_vehicles,active_requests,current_time,network,args.ML,args.THREADS)
 
     # Remove blank trips
     blank_trips = {

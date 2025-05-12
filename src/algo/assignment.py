@@ -1,7 +1,13 @@
 from gurobipy import Model, GRB, quicksum
 from src.algo.rvgenerator import rvgenerator
 from src.algo.rtvgenerator import build_rtv_graph
+from src.env.struct.Trip import Trip
+from src.algo.insersion import travel_timed
+from src.algo.rtvgenerator import delay_all
+from src.algo.rr_partition_online import rr_partition, tripgenerator_parallel, vehicle_assignment
 import src.utils.global_var as glo
+import json,os
+import numpy as np
 
 
 def ilp_assignment(trip_list, requests, time_param):
@@ -150,22 +156,42 @@ def ilp_assignement_full(vehicles, requests, current_time, network, model, threa
     Returns:
         dict: A dictionary mapping Vehicle instances to assigned Trip instances.
     """
-    print("Building RV graph")
-    rv_edges, rr_edges = rvgenerator(vehicles, requests, current_time, network, threads)
+    # print("Building RV graph")
+    # rv_edges, rr_edges = rvgenerator(vehicles, requests, current_time, network, threads)
 
-    print("Building RTV graph")
-    trip_list, feasible, infeasible, all_cal, pass_cal = build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model, threads=threads)
+    # print("Building RTV graph")
+    # trip_list = build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model, threads=threads)
     # trip_list_ml, _, _,_,_ = build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model=1, threads=threads)
     # trip_list_navie, _, _ ,_,_= build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model=2, threads=threads)
 
+    rr_graph_list, sizes = rr_partition(requests, current_time, network, mode=glo.PARTITION, threads=threads)
+    if glo.PARTITION != 'None':
+        print(f"Partitioned into {len(rr_graph_list)} subgraphs. Min size {min(sizes)}. Max size {max(sizes)}. All {sum(sizes)}. Variance {np.var(sizes)}.")
+    else:
+        print(f"No partition. Graph size {rr_graph_list[0].number_of_nodes()}.")
+
+    trip_list = tripgenerator_parallel(rr_graph_list, vehicles, network, current_time, model=model, threads=threads)
+    # Drop duplicate trips (possible if partition is used)
+    trip_list = {vehicle: list(set(trips)) for vehicle, trips in trip_list.items()}
+
     # Count total number of trips
     total_trips = sum(len(trips) for trips in trip_list.values())
+
+    # Count trip sizes distribution
+    # trip_sizes = [0]*glo.CARSIZE
+    # for trips in trip_list.values():
+    #     for trip in trips:
+    #         if len(trip.requests) != 0:
+    #             trip_sizes[len(trip.requests)-1] += 1
+    # tmp_file_path = glo.RESULTS_DIRECTORY + '/man_new/tmp/' + glo.LOG_FILE.split('/')[-1].split('.log')[0] + '.jsonl'
+    # with open(tmp_file_path, "a") as f:
+    #     json.dump(trip_sizes, f)
+    #     f.write("\n")
+
     # total_trips_ml = sum(len(trips) for trips in trip_list_ml.values())
     # total_trips_navie = sum(len(trips) for trips in trip_list_navie.values())
     # print(f"Trip list is of size {total_trips}\t {total_trips_ml}\t {total_trips_navie}")
     print(f"Trip list is of size {total_trips}")
-    if model == 1:
-        print(f"pass {pass_cal} over {all_cal}")
 
     # Check to ensure no previously assigned requests were rejected
     assigned_request_ids = {request.id for request in requests if request.assigned}
@@ -187,25 +213,12 @@ def ilp_assignement_full(vehicles, requests, current_time, network, model, threa
                 break
         if not found:
             print(f"Vehicle ID {vehicle.id}")
+            print(len(prev_requests))
             raise RuntimeError("Did not replicate the previous trip!")
-
-    # Optionally, output trace of generated trip_list
-    # You can write to a file or process as needed
-    # For example:
-    # with open("rtv.log", "a") as rtv_file:
-    #     rtv_file.write(f"TIME STAMP {time_param}\n")
-    #     for vehicle, trips in trip_list.items():
-    #         for trip in trips:
-    #             trip_info = {
-    #                 'v': vehicle.id,
-    #                 'rs': [request.id for request in trip.requests],
-    #                 'c': trip.cost
-    #             }
-    #             rtv_file.write(f"{trip_info}\n")
 
     # Perform the ILP assignment
     assigned_trips, obj = ilp_assignment(trip_list, requests, current_time)
     # _, obj_ml = ilp_assignment(trip_list_ml, requests, current_time)
     # _, obj_navie = ilp_assignment(trip_list_navie, requests, current_time)
 
-    return assigned_trips, feasible, infeasible, obj
+    return assigned_trips, obj

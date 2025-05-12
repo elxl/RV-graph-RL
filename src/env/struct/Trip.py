@@ -51,7 +51,7 @@ class NodeStop:
     
     def __hash__(self):
 
-        return hash((self.r.id, self.is_pickup, self.node))
+        return hash((self.r.id, self.is_pickup))
         
 class Trip:
     """
@@ -65,10 +65,8 @@ class Trip:
         self.requests = requests if requests else []  # List of Request objects
 
     def __eq__(self, value):
-        if set(self.order_record) == set(value.order_record):
-            return True
-        else:
-            return False
+        return self.order_record == value.order_record
+    
     def __lt__(self, value):
         if self.cost < value.cost:
             return True

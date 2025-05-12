@@ -63,7 +63,7 @@ def initialize():
     parser.add_argument('--MODEL_PATH', type=str, default=glo.MODEL_PATH, help="Path to the feasibility prediction model.")
     parser.add_argument('--THREADS', type=int, default=1, help="Number of threads.")
     parser.add_argument('--PARTITION', type=str, default=glo.PARTITION, help="Partition mode.")
-    parser.add_argument('--PARTITION_K', type=int, default=5, help="Number of partitions.")
+    parser.add_argument('--PARTITION_K', type=int, default=glo.PARTITION_K, help="Number of partitions.")
     parser.add_argument('--GAP', type=float, default=glo.GAP, help="Optimality gap.")
 
     # Parse the arguments

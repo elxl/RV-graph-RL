@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
-import math, copy
+import math, copy, random
 import time
 import threading
 import pymetis
@@ -9,11 +9,13 @@ from src.algo.insersion import travel
 from src.algo.insersion import travel_timed
 from src.algo.rtvgenerator import previoustrip, delay_all
 from src.env.struct.Trip import Trip
+from src.env.struct.Vehicle import Vehicle
 from src.utils.helper import rr_weight, graph_to_pymetis_inputs
 from operator import itemgetter
 from gurobipy import Model, GRB, quicksum
 from networkx.algorithms.community import greedy_modularity_communities
 from sklearn.cluster import SpectralClustering
+from collections import defaultdict
 
 import src.utils.global_var as glo
 # Create locks for each shared resource
@@ -26,8 +28,7 @@ def make_rrgraph(rr_data):
         rr_data (nx.graph): RR graph.
     """
 
-    # rr_graph = rr_data['rr_graph']
-    rr_graph = nx.Graph()
+    rr_graph = rr_data['rr_graph']
     start = rr_data['start']
     end = rr_data['end']
     network = rr_data['network']
@@ -35,7 +36,7 @@ def make_rrgraph(rr_data):
     end = min(end, len(requests))
     current_time = rr_data['current_time']
 
-    print(f"[Thread {threading.current_thread().name}] Processing requests {start} to {end}")
+    # print(f"[Thread {threading.current_thread().name}] Processing requests {start} to {end}")
 
     for i in range(start, end):
         request1 = requests[i]
@@ -52,9 +53,10 @@ def make_rrgraph(rr_data):
             if min_wait+max(current_time,request1.entry_time) > request2.latest_boarding:
                 continue
 
-            weight = rr_weight(request1, request2, network)
+            weight = rr_weight(request1, request2, network, current_time)
             if weight >= 0:
                 compatible_requests.append((request2,weight))
+            
         # Keep the top k links
         compatible_requests.sort(key=lambda req: req[1])
         if glo.PRUNING_RR_K and len(compatible_requests) > glo.PRUNING_RR_K:
@@ -63,7 +65,6 @@ def make_rrgraph(rr_data):
             with lock:
                 rr_graph.add_node(f'r{request2.id}', request=request2, label='r')  # Add request node with label "r"
                 rr_graph.add_edge(f'r{request1.id}', f'r{request2.id}', weight=weight)  # Add rr edge with path cost
-    return rr_graph
 
 def make_rvgraph(vehicles, rr_graph, network, current_time):
     """Build RV edge on RV graph using NetworkX based on rr subgraph.
@@ -146,6 +147,7 @@ def auto_thread(job_count, function, arguments, thread_count, task):
                 vehicles = arguments['vehicles']
                 network = arguments['network']
                 current_time = arguments['current_time']
+                model = arguments['model']
                 data = {
                     'start': start,
                     'end': end,
@@ -154,6 +156,7 @@ def auto_thread(job_count, function, arguments, thread_count, task):
                     'vehicles': vehicles,
                     'network': network,
                     'current_time': current_time,
+                    'model': model,
                 }
                 executor.submit(function, data)
             else:
@@ -250,36 +253,36 @@ def tripgenerator(wrap_data):
     end = min(end, len(rr_graphs))
     network = wrap_data['network']
     current_time = wrap_data['current_time']
-    print(f"[{time.strftime('%H:%M:%S.%f')[:-2]}][Start thread {threading.current_thread().name}] Processing graphs {start} to {end}")
+    model_mode = wrap_data['model']
+    # print(f"[{time.strftime('%H:%M:%S.%f')[:-2]}][Start thread {threading.current_thread().name}] Processing graphs {start} to {end}")
 
     for i in range(start, end):
         rr_graph = rr_graphs[i]
-        rv_graph, vehicles_sub = make_rvgraph(vehicles, rr_graph, network, current_time)
+        rv_graph, _ = make_rvgraph(vehicles, rr_graph, network, current_time)
 
         start_time = time.perf_counter()
         timeout = False
 
-        for vehicle in vehicles_sub:
+        for vehicle in vehicles:
             rounds = []
             previous_assigned_passengers = set(vehicle.pending_requests)
 
             # Generate trip for onboard passengers with no new assignment (deliever onboard passengers).
-            # If vehicle is already checked, skip it. Onboard trip is already included in trip_list.
-            if vehicle not in trip_list:
-                baseline = Trip()
-                cost,path = travel_timed(vehicle, [], network, current_time, start_time, 0, 'STANDARD')
-                if glo.CTSP_OBJECTIVE == "CTSP_DELAY":
-                    cost = delay_all(vehicle,path,network,current_time)
-                baseline.cost, baseline.order_record = cost,path
-                rounds.append([baseline])
-            else:
-                rounds.append([])
+            baseline = Trip()
+            cost,path = travel_timed(vehicle, [], network, current_time, start_time, 0, 'STANDARD')
+            if glo.CTSP_OBJECTIVE == "CTSP_DELAY":
+                cost = delay_all(vehicle,path,network,current_time)
+            baseline.cost, baseline.order_record = cost,path
+            rounds.append([baseline])
 
             # Get initial pairing of requests connected to the vehicle in rv_graph
             with lock:
                 vehicle_id = vehicle.id
-                # Retrieve the Request objects
-                initial_pairing = {rv_graph.nodes[neighbor_label]['request'] for neighbor_label in rv_graph.neighbors(f'v{vehicle_id}')}
+                if rv_graph.has_node(f'v{vehicle_id}'):
+                    # Retrieve the Request objects
+                    initial_pairing = {rv_graph.nodes[neighbor_label]['request'] for neighbor_label in rv_graph.neighbors(f'v{vehicle_id}')}
+                else:
+                    initial_pairing = set()
             initial_pairing.update(vehicle.pending_requests) # Add assigned trip from the previous assignment
 
             # Generate trips with one request
@@ -331,7 +334,11 @@ def tripgenerator(wrap_data):
                         # Check if all subsets exist
                         if not all_subsets_exist(combined_requests, rounds[k - 1]):
                             continue
-
+                        
+                        if model_mode == 2:
+                            # Randomly drop certain percentage of the time
+                            if random.random() > 1-glo.RANDOM:
+                                continue                            
                         # Calculate route and delay
                         path_cost, path_order = travel_timed(
                             vehicle, list(combined_requests), network, current_time, start_time, 0, trigger='STANDARD'
@@ -352,6 +359,12 @@ def tripgenerator(wrap_data):
                 # print(len(new_round), end=" ")
 
             # Compile potential trip list
+            # potential_trips = []
+            # for size,round_trips in enumerate(rounds):
+            #     # Only include trips of size >= 2 and in the previous assignment
+            #     if size==0 or size>=4:
+            #         trips = [trip for trip in round_trips]
+            #         potential_trips.extend(trips)
             potential_trips = [trip for round_trips in rounds for trip in round_trips]
             for trip in potential_trips:
                 if trip.cost == -1:
@@ -371,12 +384,9 @@ def tripgenerator(wrap_data):
                     potential_trips.append(previous_trip)
             # Update trip list
             with lock:
-                if vehicle not in trip_list:
-                    trip_list[vehicle] = potential_trips # trip_list: {Vehicle:[Trip]}
-                else:
-                    trip_list[vehicle].extend(potential_trips)
+                trip_list[vehicle].extend(potential_trips) # trip_list: {Vehicle:[Trip]}
 
-    print(f"[{time.strftime('%H:%M:%S.%f')[:-2]}][Finish thread {threading.current_thread().name}] Processing graphs {start} to {end}")
+    # print(f"[{time.strftime('%H:%M:%S.%f')[:-2]}][Finish thread {threading.current_thread().name}] Processing graphs {start} to {end}")
 
 def is_rr_connected(requests1, requests2, rr_graph):
     """Check if all requests are connected in the RR graph."""
@@ -398,7 +408,7 @@ def all_subsets_exist(requests, previous_round):
             return False
     return True
 
-def tripgenerator_parallel(rr_graph_list, vehicles, network, current_time, threads=1):
+def tripgenerator_parallel(rr_graph_list, vehicles, network, current_time, model=0, threads=1):
     """Generate trips in parallel from the RR graph list.
     Args:
         rr_graph_list (List[nx.Graph]): List of RR graphs.
@@ -409,13 +419,14 @@ def tripgenerator_parallel(rr_graph_list, vehicles, network, current_time, threa
     Returns:
         List[Trip]: List of generated trips.
     """
-    trip_list = {}
+    trip_list = defaultdict(list)
     arguments = {
         'trip_list': trip_list,
         'graph_list': rr_graph_list,
         'vehicles': vehicles,
         'network': network,
-        'current_time': current_time
+        'current_time': current_time,
+        'model': model
     }
     auto_thread(
         job_count=len(rr_graph_list),
