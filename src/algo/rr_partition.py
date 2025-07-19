@@ -1,8 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor
-import math, copy
+import math, copy, random
 import time
 import threading
 import pymetis
+import torch
 import numpy as np
 import networkx as nx
 from src.algo.insersion import travel_novehicle
@@ -15,7 +16,27 @@ from sklearn.cluster import SpectralClustering
 import src.utils.global_var as glo
 # Create locks for each shared resource
 lock = threading.Lock()
+thread_local = threading.local()
 
+def get_model():
+    """Load the model for feasibility prediction.
+    """
+    if not hasattr(thread_local, "model"):
+        # model = Struc2Vec(
+        #     p_dim=16,
+        #     nfeatures_vehicle=2,
+        #     nfeatures_pickup=2,
+        #     nfeatures_dropoff=2,
+        #     nfeatures_edge=2,
+        #     r=4
+        # )
+        # checkpoint = torch.load(glo.MODEL_PATH, map_location='cpu')
+        # model.load_state_dict(checkpoint['model_state_dict'])
+        thread_local.model = torch.jit.load(glo.MODEL_PATH)
+        thread_local.model.eval()
+        # thread_local.model.eval()
+        # thread_local.model = ort.InferenceSession(glo.MODEL_PATH)
+    return thread_local.model
 
 def make_rrgraph(rr_data):
     """Build RR edge on RR graph using NetworkX with weights.
@@ -49,7 +70,7 @@ def make_rrgraph(rr_data):
             if min_wait+max(current_time,request1.entry_time) > request2.latest_boarding:
                 continue
 
-            weight = rr_weight(request1, request2, network)
+            weight = rr_weight(request1, request2, network, current_time)
             if weight >= 0:
                 compatible_requests.append((request2,weight))
         # Keep the top k links
@@ -186,6 +207,7 @@ def tripgenerator(wrap_data):
     end = min(end, len(rr_graphs))
     network = wrap_data['network']
     current_time = wrap_data['current_time']
+    model = get_model()
     print(f"[{time.strftime('%H:%M:%S.%f')[:-2]}][Start thread {threading.current_thread().name}] Processing graphs {start} to {end}")
 
     for i in range(start, end):
@@ -241,6 +263,17 @@ def tripgenerator(wrap_data):
                     # Check if all subsets exist
                     if not all_subsets_exist(combined_requests, rounds[k - 2]):
                         continue
+
+                    # # Process clique into nn input
+                    # requests = list(combined_requests)
+                    # x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types = process_trip_lists(current_time, [vehicle] + requests, network, evaluation=True, directed=True)
+                    # node_num = x_vehicle.size(0) + x_pickup.size(0) + x_dropoff.size(0)
+                    # mu = torch.zeros((node_num, 16), dtype=torch.float32)
+                    # batch_index = torch.zeros(node_num, dtype=torch.int64)
+                    # proba = model(x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types, mu, batch_index)
+                    # # Check route feasibility
+                    # # if random.random() > proba[0]:
+                    # #     continue
 
                     path_cost_min, path_order_min = travel_novehicle(list(combined_requests), network, current_time)
                     if path_cost_min < 0:
@@ -364,6 +397,9 @@ def vehicle_assignment(trip_list, v_num):
     model.setParam("OutputFlag", 0)
     if glo.GAP:
         model.setParam("MIPGap", glo.GAP)
+    elif glo.ILP_TIMEOUT:
+        model.setParam("TimeLimit", glo.ILP_TIMEOUT)
+
 
     # Solve the model
     model.optimize()

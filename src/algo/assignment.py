@@ -4,7 +4,7 @@ from src.algo.rtvgenerator import build_rtv_graph
 from src.env.struct.Trip import Trip
 from src.algo.insersion import travel_timed
 from src.algo.rtvgenerator import delay_all
-from src.algo.rr_partition_online import rr_partition, tripgenerator_parallel, vehicle_assignment
+from src.algo.rr_partition_online_singlethread import rr_partition, tripgenerator_parallel, vehicle_assignment
 import src.utils.global_var as glo
 import json,os
 import numpy as np
@@ -156,23 +156,24 @@ def ilp_assignement_full(vehicles, requests, current_time, network, model, threa
     Returns:
         dict: A dictionary mapping Vehicle instances to assigned Trip instances.
     """
-    # print("Building RV graph")
-    # rv_edges, rr_edges = rvgenerator(vehicles, requests, current_time, network, threads)
+    if glo.VERSION == 0:
+        print("Building RV graph")
+        rv_edges, rr_edges = rvgenerator(vehicles, requests, current_time, network, threads)
 
-    # print("Building RTV graph")
-    # trip_list = build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model, threads=threads)
-    # trip_list_ml, _, _,_,_ = build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model=1, threads=threads)
-    # trip_list_navie, _, _ ,_,_= build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model=2, threads=threads)
-
-    rr_graph_list, sizes = rr_partition(requests, current_time, network, mode=glo.PARTITION, threads=threads)
-    if glo.PARTITION != 'None':
-        print(f"Partitioned into {len(rr_graph_list)} subgraphs. Min size {min(sizes)}. Max size {max(sizes)}. All {sum(sizes)}. Variance {np.var(sizes)}.")
+        print("Building RTV graph")
+        trip_list = build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model, threads=threads)
+        # trip_list_ml, _, _,_,_ = build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model=1, threads=threads)
+        # trip_list_navie, _, _ ,_,_= build_rtv_graph(current_time, rr_edges, rv_edges, vehicles, network, model=2, threads=threads)
     else:
-        print(f"No partition. Graph size {rr_graph_list[0].number_of_nodes()}.")
+        rr_graph_list, sizes = rr_partition(requests, current_time, network, mode=glo.PARTITION, threads=threads)
+        if glo.PARTITION != 'None':
+            print(f"Partitioned into {len(rr_graph_list)} subgraphs. Min size {min(sizes)}. Max size {max(sizes)}. All {sum(sizes)}. Variance {np.var(sizes)}.")
+        else:
+            print(f"No partition. Graph size {rr_graph_list[0].number_of_nodes()}.")
 
-    trip_list = tripgenerator_parallel(rr_graph_list, vehicles, network, current_time, model=model, threads=threads)
-    # Drop duplicate trips (possible if partition is used)
-    trip_list = {vehicle: list(set(trips)) for vehicle, trips in trip_list.items()}
+        trip_list = tripgenerator_parallel(rr_graph_list, vehicles, network, current_time, model=model, threads=threads)
+        # Drop duplicate trips (possible if partition is used)
+        trip_list = {vehicle: list(set(trips)) for vehicle, trips in trip_list.items()}
 
     # Count total number of trips
     total_trips = sum(len(trips) for trips in trip_list.values())

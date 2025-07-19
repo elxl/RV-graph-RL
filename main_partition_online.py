@@ -7,7 +7,7 @@ from src.utils.parser import initialize
 import src.utils.global_var as glo
 from src.env.struct.Network import Network
 from src.utils.helper import load_vehicles,load_requests,encode_time,decode_time,get_active_vehicles,get_new_requests
-from src.algo.rr_partition_online import rr_partition, tripgenerator_parallel, vehicle_assignment
+from src.algo.rr_partition_online_singlethread import rr_partition, tripgenerator_parallel, vehicle_assignment
 
 if __name__ == "__main__":
     args = initialize()

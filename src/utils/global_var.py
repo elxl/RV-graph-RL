@@ -44,6 +44,7 @@ ILP_TIMEOUT = 0  # Time limit for ILP optimization. Set 0 to indicate no limit.
 LAST_MINUTE_SERVICE = False # If waiting at stop as long as possible
 
 # Parition
+VERSION = 0 # [0: original, 1: with partition embedded]
 PARTITION = 'None' # [None, Modularity]
 PARTITION_K = 4 # Number of partitions
 GAP = 0.05 # Optimality gap for assignment ILP
