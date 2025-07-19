@@ -1,5 +1,6 @@
-# torch==2.4.1
-gurobipy==12.0.0 # Adjust this version if you have a different Gurobi version license
+torch==2.6.0
+geopandas==1.0.1
+gurobipy==12.0.1 # Adjust this version if you have a different Gurobi version license
 matplotlib==3.10.0
 matplotlib-inline
 networkx
@@ -12,13 +13,15 @@ PyYAML
 scikit-learn==1.5.2
 scipy
 shapely==2.0.6
-torch-geometric
-# torch_scatter
+torch-geometric==2.6.1
+torch_scatter==2.1.2
 torchmetrics==1.6.0
-torchvision==0.19.1
+torchaudio==2.6.0
+torchvision==0.21.0
 tqdm
 urllib3
-wandb==0.18.6
+wandb==0.20.1
 yarl
 zipp
 colorama
+pymetis
