@@ -3,12 +3,14 @@ import math, copy, random
 import time
 import threading
 import pymetis
+import torch
 import numpy as np
 import networkx as nx
 from src.algo.insersion import travel
 from src.algo.insersion import travel_timed
 from src.algo.rtvgenerator import previoustrip, delay_all
 from src.env.struct.Trip import Trip
+from src.utils.pytorch_util import process_trip_lists
 from src.env.struct.Vehicle import Vehicle
 from src.utils.helper import rr_weight, graph_to_pymetis_inputs
 from operator import itemgetter
@@ -20,6 +22,7 @@ from collections import defaultdict
 import src.utils.global_var as glo
 # Create locks for each shared resource
 lock = threading.Lock()
+thread_local = threading.local()
 
 def make_rrgraph(rr_data):
     """Build RR edge on RR graph using NetworkX with weights.
@@ -113,6 +116,14 @@ def make_rvgraph(vehicles, rr_graph, network, current_time):
                 vehicles_graph.append(vehicle)
                 count += 1
     return rv_graph, vehicles_graph
+
+def get_model():
+    """Load the model for feasibility prediction.
+    """
+    if not hasattr(thread_local, "model"):
+        thread_local.model = torch.jit.load(glo.MODEL_PATH)
+        thread_local.model.eval()
+    return thread_local.model
 
 # Function to handle thread distribution
 def auto_thread(job_count, function, arguments, thread_count, task):
@@ -256,6 +267,8 @@ def tripgenerator(wrap_data):
     model_mode = wrap_data['model']
     # print(f"[{time.strftime('%H:%M:%S.%f')[:-2]}][Start thread {threading.current_thread().name}] Processing graphs {start} to {end}")
 
+    model = get_model()
+
     for i in range(start, end):
         rr_graph = rr_graphs[i]
         rv_graph, _ = make_rvgraph(vehicles, rr_graph, network, current_time)
@@ -334,11 +347,22 @@ def tripgenerator(wrap_data):
                         # Check if all subsets exist
                         if not all_subsets_exist(combined_requests, rounds[k - 1]):
                             continue
-                        
-                        if model_mode == 2:
+
+                        # Process clique into nn input
+                        requests = list(combined_requests)
+                        x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types = process_trip_lists(current_time, [vehicle] + requests, network, evaluation=True, directed=True)
+                        node_num = x_vehicle.size(0) + x_pickup.size(0) + x_dropoff.size(0)
+                        mu = torch.zeros((node_num, 16), dtype=torch.float32)
+                        batch_index = torch.zeros(node_num, dtype=torch.int64)
+                        proba = model(x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types, mu, batch_index)
+                        if model_mode == 1:
+                            if random.random() > proba[0]:
+                                continue
+                        elif model_mode == 2:
                             # Randomly drop certain percentage of the time
                             if random.random() > 1-glo.RANDOM:
-                                continue                            
+                                continue       
+                                             
                         # Calculate route and delay
                         path_cost, path_order = travel_timed(
                             vehicle, list(combined_requests), network, current_time, start_time, 0, trigger='STANDARD'

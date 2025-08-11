@@ -4,7 +4,7 @@ from src.algo.rtvgenerator import build_rtv_graph
 from src.env.struct.Trip import Trip
 from src.algo.insersion import travel_timed
 from src.algo.rtvgenerator import delay_all
-from src.algo.rr_partition_online_singlethread import rr_partition, tripgenerator_parallel, vehicle_assignment
+from src.algo.rr_partition_online import rr_partition, tripgenerator_parallel, vehicle_assignment
 import src.utils.global_var as glo
 import json,os
 import numpy as np

@@ -234,7 +234,7 @@ def make_rtvgraph(wrap_data):
                     proba = model(x_vehicle, x_pickup, x_dropoff, edge_index, edge_attr, node_types, mu, batch_index)
                     # Check route feasibility
                     if model_mode == 1:
-                        if 0.8 > proba[0]:
+                        if random.random() > proba[0]:
                             pass_calc += 1
                             continue
                     elif model_mode == 2:
