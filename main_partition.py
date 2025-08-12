@@ -7,7 +7,9 @@ from src.utils.parser import initialize
 import src.utils.global_var as glo
 from src.env.struct.Network import Network
 from src.utils.helper import load_vehicles,load_requests,encode_time,decode_time,get_active_vehicles,get_new_requests
-from src.algo.rr_partition import rr_partition, tripgenerator_parallel, vehicle_assignment
+# from src.algo.rr_partition import rr_partition, tripgenerator_parallel, vehicle_assignment
+from src.algo.rr_partition_online import rr_partition, tripgenerator_parallel
+from src.algo.assignment import ilp_assignment
 
 if __name__ == "__main__":
     args = initialize()
@@ -26,8 +28,8 @@ if __name__ == "__main__":
     network = Network(config=config)
     print(f"{Fore.GREEN}Network was loaded!{Style.RESET_ALL}")
 
-    # Load requests
-    num_vehicles = glo.VEHICLE_LIMIT
+    # Load vehicles and requests
+    vehicles = load_vehicles(os.path.join(glo.DATAROOT, glo. VEHICLE_DATA_FILE))
     print(f"{Fore.WHITE}Loading requests{Style.RESET_ALL}")
     requests = load_requests(os.path.join(glo.DATAROOT, glo.REQUEST_DATA_FILE),network)
 
@@ -52,13 +54,17 @@ if __name__ == "__main__":
 
     # Get trips
     print(f"{Fore.YELLOW}********Trip generation start at {datetime.datetime.now().time()}********{Style.RESET_ALL}")
-    trips = tripgenerator_parallel(rr_graph_list, network, current_time, threads=args.THREADS)
-    print(f"{Fore.WHITE}{len(trips)} trips generated.{Style.RESET_ALL}")
+    trip_list = tripgenerator_parallel(rr_graph_list, vehicles, network, current_time, model=args.ML, threads=args.THREADS)
+    trip_list = {vehicle: list(set(trips)) for vehicle, trips in trip_list.items()}
+    trips = sum(len(trips) for trips in trip_list.values())
+    print(f"{Fore.WHITE}{trips} trips generated.{Style.RESET_ALL}")
     print(f"{Fore.GREEN}Trip generation finished at {datetime.datetime.now().time()}!{Style.RESET_ALL}")
 
     # Assign vehicles to trips
     print(f"{Fore.YELLOW}********Assignment start at {datetime.datetime.now().time()}********{Style.RESET_ALL}")
-    assignments, served, obj = vehicle_assignment(trips, num_vehicles)
+    assigned_trips, obj = ilp_assignment(trip_list, requests, current_time)
+    served = sum(len(trip.requests) for trip in assigned_trips.values())
+    print(f"Objective value: {obj}")
 
     end_time = time.perf_counter()
 
@@ -100,5 +106,5 @@ if __name__ == "__main__":
         results.write(f"TIME {round(end_time - start_time)}\n")
         results.write(f"REQUESTS {len(requests)}\n")
         results.write(f"SERVED {served}\n")
-        results.write(f"ASSIGNMENTS {len(assignments)}\n")
+        # results.write(f"ASSIGNMENTS {len(assignments)}\n")
         results.write(f"OBJ {obj}\n")
