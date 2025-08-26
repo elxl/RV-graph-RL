@@ -207,6 +207,8 @@ def tripgenerator(wrap_data):
     end = min(end, len(rr_graphs))
     network = wrap_data['network']
     current_time = wrap_data['current_time']
+    model_mode = wrap_data['model_mode']
+
     model = get_model()
     print(f"[{time.strftime('%H:%M:%S.%f')[:-2]}][Start thread {threading.current_thread().name}] Processing graphs {start} to {end}")
 
@@ -317,7 +319,7 @@ def all_subsets_exist(requests, previous_round):
             return False
     return True
 
-def tripgenerator_parallel(rr_graph_list, network, current_time, threads=1):
+def tripgenerator_parallel(rr_graph_list, network, current_time, model, threads=1):
     """Generate trips in parallel from the RR graph list.
     Args:
         rr_graph_list (List[nx.Graph]): List of RR graphs.
@@ -334,7 +336,8 @@ def tripgenerator_parallel(rr_graph_list, network, current_time, threads=1):
         'trip_list': trip_list,
         'graph_list': rr_graph_list,
         'network': network,
-        'current_time': current_time
+        'current_time': current_time,
+        'model_mode': model,
     }
     auto_thread(
         job_count=len(rr_graph_list),
